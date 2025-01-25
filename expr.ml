@@ -250,9 +250,11 @@ let rec simplify expr =
     | Cos (Var x) -> Mul (Const (-1.), Sin (Var x))
     | Sin xpr -> Mul (derivative_engine xpr wrt, Cos xpr)
     | _ -> failwith "Not implemented yet"
-  and simplify' = function
+  in let simplify' = function
     | Add (Const m, Const n) -> Const (m +. n)
     | Mul (Const m, Const n) -> Const (m *. n)
+    | Mul (Var m, Var n) when m = n -> Exp(Var m, Const 2.)
+    | Add (Var m, Var n) when m = n -> Mul(Const 2., Var m)
     | Add (Const 0., x) | Add (x, Const 0.) -> x
     | Mul (Const 0., x) | Mul (x, Const 0.) -> Const 0.
     | Mul (Const 1., x) | Mul (x, Const 1.) -> x
@@ -280,10 +282,16 @@ let rec simplify expr =
   | _ -> simplify' expr
 ;;
 
+let safe_int_to_string x =
+  let diff = abs_float (x -. float_of_int (int_of_float x)) in
+  if diff < 1e-9 then string_of_int (int_of_float x) else string_of_float x
+
 let rec pp = function
-  | Const x -> string_of_float x
+  | Const x -> safe_int_to_string x
   | Var x -> x
   | Add (e1, e2) -> Printf.sprintf "(%s + %s)" (pp e1) (pp e2)
+  | Mul(Const c, Var x) -> Printf.sprintf "(%s%s)" (pp @@ Const c) (pp @@ Var x);
+  | Mul(Const c, e1) -> Printf.sprintf "(%s(%s))" (pp @@ Const c) (pp e1);
   | Mul (e1, e2) -> Printf.sprintf "(%s * %s)" (pp e1) (pp e2)
   | Div (e1, e2) -> Printf.sprintf "(%s / %s)" (pp e1) (pp e2)
   | Exp (e1, e2) -> Printf.sprintf "(%s ^ %s)" (pp e1) (pp e2)
