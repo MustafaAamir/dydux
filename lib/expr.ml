@@ -2,6 +2,7 @@ type expression =
   | Var of string
   | Const of float
   | Add of expression * expression
+  | Sub of expression * expression
   | Mul of expression * expression
   | Div of expression * expression
   | Exp of expression * expression
@@ -21,6 +22,7 @@ let rec pp = function
   | Const x -> safe_int_to_string x
   | Var x -> x
   | Add (e1, e2) -> Printf.sprintf "(%s + %s)" (pp e1) (pp e2)
+  | Sub (e1, e2) -> Printf.sprintf "(%s - %s)" (pp e1) (pp e2)
   | Mul(Const c, Var x) | Mul(Var x, Const c) -> Printf.sprintf "(%s%s)" (pp @@ Const c) (pp @@ Var x)
   | Mul(Const c, e1) -> Printf.sprintf "(%s(%s))" (pp @@ Const c) (pp e1);
   | Mul (e1, e2) -> Printf.sprintf "(%s * %s)" (pp e1) (pp e2)
@@ -261,19 +263,27 @@ let rec simplify expr =
     | Mul (Const c, Var _) -> Const c
     | Mul (Var _, Const c) -> Const c
     | Mul (e1, e2) ->
-      let e1' = derivative_engine e1 wrt in
-      let e2' = derivative_engine e2 wrt in
+      let e1' = simplify (derivative_engine e1 wrt) in
+      let e2' = simplify (derivative_engine e2 wrt) in
       Add (Mul (e1', e2), Mul (e1, e2'))
-    | Exp (Var x, Const c) -> Mul (Const c, Exp (Var x, Const (c -. 1.)))
+    | Div (e1, e2) ->
+      let e1' = simplify (derivative_engine e1 wrt) in
+      let e2' = simplify (derivative_engine e2 wrt) in
+      simplify (Div (Sub (simplify(Mul (e1', e2)), simplify(Mul (e1, e2'))), Exp(e2, Const 2.)))
+    | Exp (Var x, Const c) -> Mul (Const c, simplify (Exp (Var x, Const (c -. 1.))))
     | Cos (Var x) -> Mul (Const (-1.), Sin (Var x))
     | Sin xpr -> Mul (derivative_engine xpr wrt, Cos xpr)
     | _ -> failwith "Not implemented yet"
   in let simplify' = function
     | Add (Const m, Const n) -> Const (m +. n)
+    | Sub (Const m, Const n) -> Const (m -. n)
     | Mul (Const m, Const n) -> Const (m *. n)
     | Mul (Var m, Var n) when m = n -> Exp(Var m, Const 2.)
     | Add (Var m, Var n) when m = n -> Mul(Const 2., Var m)
     | Add (Const 0., x) | Add (x, Const 0.) -> x
+    | Sub (Const 0., x) | Mul (x, Const -1.) -> x
+    | Sub (x, Const 0.) -> x
+    | Sub (Var m, Var n) when m = n -> Const 0.
     | Mul (Const 0., _) | Mul (_, Const 0.) -> Const 0.
     | Mul (Const 1., x) | Mul (x, Const 1.) -> x
     | Div (Const 0., _) -> Const 0.
