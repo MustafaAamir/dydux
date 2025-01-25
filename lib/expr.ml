@@ -311,9 +311,9 @@ let rec simplify expr =
     | Sin xpr -> Mul (derivative_engine xpr wrt, Cos xpr)
     | _ -> failwith "Not implemented yet"
   in
-  let integral_engine (expression : expression) wrt (limits : (float * float) option) =
+  let rec integral_engine (expression : expression) wrt (limits : (float * float) option) =
     let res =
-      match expression with
+      match simplify expression with
       | Var x when x = wrt ->
         let num = Exp (Var x, Const 2.) |> simplify in
         Div (num, Const 2.) |> simplify
@@ -321,6 +321,8 @@ let rec simplify expr =
         let num = Exp (Var v, Const (c +. 1.)) |> simplify in
         Div (num, Const (c +. 1.)) |> simplify
       | Const c -> Mul (Const c, Var wrt)
+      | Mul (Const c, Var v) ->
+        Mul (Const c, Div (Exp (Var v, Const 2.) |> simplify, Const 2.)) |> simplify
       | Sin e ->
         let ie = simplify e in
         let dif = derivative_engine ie wrt in
@@ -329,8 +331,17 @@ let rec simplify expr =
         let ie = simplify e in
         let dif = derivative_engine ie wrt in
         Mul (Div (Const 1., dif) |> simplify, Sin ie) |> simplify
+      | Add (e1, e2) ->
+        Add
+          ( integral_engine (simplify e1) wrt limits
+          , integral_engine (simplify e2) wrt limits )
+      | Sub (e1, e2) ->
+        Sub
+          ( integral_engine (simplify e1) wrt limits
+          , integral_engine (simplify e2) wrt limits )
       | _ -> expression
     in
+    (* seperate in a seperate function to avoid + c's being appended in recursive calls *)
     match limits with
     | Some (l1, l2) ->
       Sub (subst wrt (Const l2) res |> simplify, subst wrt (Const l1) res |> simplify)
