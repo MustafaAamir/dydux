@@ -11,20 +11,23 @@ type expression =
   | Tan of expression
   | Diff of expression * string
   | Let of string * expression
+  | Integral of expression * string * (float * float) option
 
 type ctxt = (string, expression) Hashtbl.t
 
 let safe_int_to_string x =
   let diff = abs_float (x -. float_of_int (int_of_float x)) in
   if diff < 1e-9 then string_of_int (int_of_float x) else string_of_float x
+;;
 
 let rec pp = function
   | Const x -> safe_int_to_string x
   | Var x -> x
   | Add (e1, e2) -> Printf.sprintf "(%s + %s)" (pp e1) (pp e2)
   | Sub (e1, e2) -> Printf.sprintf "(%s - %s)" (pp e1) (pp e2)
-  | Mul(Const c, Var x) | Mul(Var x, Const c) -> Printf.sprintf "(%s%s)" (pp @@ Const c) (pp @@ Var x)
-  | Mul(Const c, e1) -> Printf.sprintf "(%s(%s))" (pp @@ Const c) (pp e1);
+  | Mul (Const c, Var x) | Mul (Var x, Const c) ->
+    Printf.sprintf "(%s%s)" (pp @@ Const c) (pp @@ Var x)
+  | Mul (Const c, e1) -> Printf.sprintf "(%s(%s))" (pp @@ Const c) (pp e1)
   | Mul (e1, e2) -> Printf.sprintf "(%s * %s)" (pp e1) (pp e2)
   | Div (e1, e2) -> Printf.sprintf "(%s / %s)" (pp e1) (pp e2)
   | Exp (e1, e2) -> Printf.sprintf "(%s ^ %s)" (pp e1) (pp e2)
@@ -32,8 +35,17 @@ let rec pp = function
   | Cos e1 -> Printf.sprintf "cos(%s)" (pp e1)
   | Tan e1 -> Printf.sprintf "tan(%s)" (pp e1)
   | Diff (expression, x) -> Printf.sprintf "%s .wrt %s" (pp expression) x
+  | Integral (expression, x, Some limits) ->
+    Printf.sprintf
+      "%s .wrt %s{%s -> %s}"
+      (pp expression)
+      x
+      (fst limits |> safe_int_to_string)
+      (snd limits |> safe_int_to_string)
+  | Integral (expression, x, None) -> Printf.sprintf "%s .wrt %s" (pp expression) x
   | Let (var, expr) -> Printf.sprintf "%s = %s" var (pp expr)
 ;;
+
 let ctx = Hashtbl.create 0
 
 module Lexer = struct
@@ -52,6 +64,7 @@ module Lexer = struct
     | Cos
     | Tan
     | LDiff
+    | LIntegral
     | Wrt
     | Comma
     | Nat of float
@@ -163,6 +176,7 @@ module Lexer = struct
            | "diff" -> LDiff :: advance st (!j - st.pos)
            | "wrt" -> Wrt :: advance st (!j - st.pos)
            | "let" -> Let :: advance st (!j - st.pos)
+           | "integrate" -> LIntegral :: advance st (!j - st.pos)
            | _ -> LVar var :: advance st (!j - st.pos))
         | '0' .. '9' ->
           let var, j = nat st st.pos in
@@ -224,6 +238,13 @@ module Parser = struct
         (match rest' with
          | Wrt :: LVar x :: rest'' -> Diff (expr, x), rest''
          | _ -> failwith "Invalid differentiation syntax")
+      | LIntegral :: rest ->
+        let expr, rest' = parse_atom rest in
+        (match rest' with
+         | Wrt :: LVar x :: LCBracket :: Nat l1 :: Comma :: Nat l2 :: RCBracket :: rest''
+           -> Integral (expr, x, Some (l1, l2)), rest''
+         | Wrt :: LVar x :: rest'' -> Integral (expr, x, None), rest''
+         | _ -> failwith "Invalid Integral syntax")
       | LVar x :: rest ->
         (match Hashtbl.find_opt ctx x with
          | Some xpr -> xpr, rest
@@ -255,6 +276,20 @@ let rec pow a = function
     b * b * if n mod 2 = 0 then 1 else a
 ;;
 
+let rec subst x s expr =
+  match expr with
+  | Var v when x = v -> s
+  | Mul (e1, e2) -> Mul (subst x s e1, subst x s e2)
+  | Div (e1, e2) -> Div (subst x s e1, subst x s e2)
+  | Add (e1, e2) -> Add (subst x s e1, subst x s e2)
+  | Exp (e1, e2) -> Exp (subst x s e1, subst x s e2)
+  | Sin e1 -> Sin (subst x s e1)
+  | Cos e1 -> Cos (subst x s e1)
+  | Tan e1 -> Tan (subst x s e1)
+  | Integral (e1, wrt, limits) -> Integral (subst x s e1, wrt, limits)
+  | _ -> expr
+;;
+
 let rec simplify expr =
   let rec derivative_engine expression wrt =
     match expression with
@@ -269,17 +304,45 @@ let rec simplify expr =
     | Div (e1, e2) ->
       let e1' = simplify (derivative_engine e1 wrt) in
       let e2' = simplify (derivative_engine e2 wrt) in
-      simplify (Div (Sub (simplify(Mul (e1', e2)), simplify(Mul (e1, e2'))), Exp(e2, Const 2.)))
+      Div (Sub (Mul (e1', e2) |> simplify, Mul (e1, e2') |> simplify), Exp (e2, Const 2.))
+      |> simplify
     | Exp (Var x, Const c) -> Mul (Const c, simplify (Exp (Var x, Const (c -. 1.))))
     | Cos (Var x) -> Mul (Const (-1.), Sin (Var x))
     | Sin xpr -> Mul (derivative_engine xpr wrt, Cos xpr)
     | _ -> failwith "Not implemented yet"
-  in let simplify' = function
+  in
+  let integral_engine (expression : expression) wrt (limits : (float * float) option) =
+    let res =
+      match expression with
+      | Var x when x = wrt ->
+        let num = Exp (Var x, Const 2.) |> simplify in
+        Div (num, Const 2.) |> simplify
+      | Exp (Var v, Const c) ->
+        let num = Exp (Var v, Const (c +. 1.)) |> simplify in
+        Div (num, Const (c +. 1.)) |> simplify
+      | Const c -> Mul (Const c, Var wrt)
+      | Sin e ->
+        let ie = simplify e in
+        let dif = derivative_engine ie wrt in
+        Mul (Div (Const (-1.), dif) |> simplify, Cos ie) |> simplify
+      | Cos e ->
+        let ie = simplify e in
+        let dif = derivative_engine ie wrt in
+        Mul (Div (Const 1., dif) |> simplify, Sin ie) |> simplify
+      | _ -> expression
+    in
+    match limits with
+    | Some (l1, l2) ->
+      Sub (subst wrt (Const l2) res |> simplify, subst wrt (Const l1) res |> simplify)
+      |> simplify
+    | None -> Add (res, Var "c")
+  in
+  let simplify' = function
     | Add (Const m, Const n) -> Const (m +. n)
     | Sub (Const m, Const n) -> Const (m -. n)
     | Mul (Const m, Const n) -> Const (m *. n)
-    | Mul (Var m, Var n) when m = n -> Exp(Var m, Const 2.)
-    | Add (Var m, Var n) when m = n -> Mul(Const 2., Var m)
+    | Mul (Var m, Var n) when m = n -> Exp (Var m, Const 2.)
+    | Add (Var m, Var n) when m = n -> Mul (Const 2., Var m)
     | Add (Const 0., x) | Add (x, Const 0.) -> x
     | Sub (Const 0., x) | Mul (x, Const -1.) -> x
     | Sub (x, Const 0.) -> x
@@ -304,11 +367,14 @@ let rec simplify expr =
   | Div (e1, e2) -> Div (simplify e1, simplify e2) |> simplify'
   | Exp (e1, e2) -> Exp (simplify e1, simplify e2) |> simplify'
   | Sin e -> Sin (simplify e) |> simplify'
-  | Cos e -> Sin (simplify e) |> simplify'
-  | Tan e -> Sin (simplify e) |> simplify'
-  | Diff (expression, x) -> derivative_engine (simplify expression) (x) |> simplify;
+  | Cos e -> Cos (simplify e) |> simplify'
+  | Tan e -> Tan (simplify e) |> simplify'
+  | Diff (expression, x) -> derivative_engine (simplify expression) x |> simplify
+  | Integral (expression, x, Some (l1, l2)) ->
+    integral_engine (simplify expression) x (Some (l1, l2)) |> simplify
+  | Integral (expression, x, None) ->
+    integral_engine (simplify expression) x None |> simplify
   | _ -> simplify' expr
 ;;
-
 
 let p x = x |> Lexer.lex |> Parser.parse |> simplify |> pp
