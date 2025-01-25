@@ -13,6 +13,25 @@ type expression =
 
 type ctxt = (string, expression) Hashtbl.t
 
+let safe_int_to_string x =
+  let diff = abs_float (x -. float_of_int (int_of_float x)) in
+  if diff < 1e-9 then string_of_int (int_of_float x) else string_of_float x
+
+let rec pp = function
+  | Const x -> safe_int_to_string x
+  | Var x -> x
+  | Add (e1, e2) -> Printf.sprintf "(%s + %s)" (pp e1) (pp e2)
+  | Mul(Const c, Var x) | Mul(Var x, Const c) -> Printf.sprintf "(%s%s)" (pp @@ Const c) (pp @@ Var x)
+  | Mul(Const c, e1) -> Printf.sprintf "(%s(%s))" (pp @@ Const c) (pp e1);
+  | Mul (e1, e2) -> Printf.sprintf "(%s * %s)" (pp e1) (pp e2)
+  | Div (e1, e2) -> Printf.sprintf "(%s / %s)" (pp e1) (pp e2)
+  | Exp (e1, e2) -> Printf.sprintf "(%s ^ %s)" (pp e1) (pp e2)
+  | Sin e1 -> Printf.sprintf "sin(%s)" (pp e1)
+  | Cos e1 -> Printf.sprintf "cos(%s)" (pp e1)
+  | Tan e1 -> Printf.sprintf "tan(%s)" (pp e1)
+  | Diff (expression, x) -> Printf.sprintf "%s .wrt %s" (pp expression) x
+  | Let (var, expr) -> Printf.sprintf "%s = %s" var (pp expr)
+;;
 let ctx = Hashtbl.create 0
 
 module Lexer = struct
@@ -238,11 +257,10 @@ let rec simplify expr =
   let rec derivative_engine expression wrt =
     match expression with
     | Const _ -> Const 0.0
-    | Var _ -> Const 1.
+    | Var x when x = wrt -> Const 1.
     | Mul (Const c, Var _) -> Const c
     | Mul (Var _, Const c) -> Const c
     | Mul (e1, e2) ->
-      print_endline "here";
       let e1' = derivative_engine e1 wrt in
       let e2' = derivative_engine e2 wrt in
       Add (Mul (e1', e2), Mul (e1, e2'))
@@ -278,28 +296,9 @@ let rec simplify expr =
   | Sin e -> Sin (simplify e) |> simplify'
   | Cos e -> Sin (simplify e) |> simplify'
   | Tan e -> Sin (simplify e) |> simplify'
-  | Diff (expression, x) -> derivative_engine (simplify expression) (Var x) |> simplify'
+  | Diff (expression, x) -> derivative_engine (simplify expression) (x) |> simplify;
   | _ -> simplify' expr
 ;;
 
-let safe_int_to_string x =
-  let diff = abs_float (x -. float_of_int (int_of_float x)) in
-  if diff < 1e-9 then string_of_int (int_of_float x) else string_of_float x
-
-let rec pp = function
-  | Const x -> safe_int_to_string x
-  | Var x -> x
-  | Add (e1, e2) -> Printf.sprintf "(%s + %s)" (pp e1) (pp e2)
-  | Mul(Const c, Var x) | Mul(Var x, Const c) -> Printf.sprintf "(%s%s)" (pp @@ Const c) (pp @@ Var x)
-  | Mul(Const c, e1) -> Printf.sprintf "(%s(%s))" (pp @@ Const c) (pp e1);
-  | Mul (e1, e2) -> Printf.sprintf "(%s * %s)" (pp e1) (pp e2)
-  | Div (e1, e2) -> Printf.sprintf "(%s / %s)" (pp e1) (pp e2)
-  | Exp (e1, e2) -> Printf.sprintf "(%s ^ %s)" (pp e1) (pp e2)
-  | Sin e1 -> Printf.sprintf "sin(%s)" (pp e1)
-  | Cos e1 -> Printf.sprintf "cos(%s)" (pp e1)
-  | Tan e1 -> Printf.sprintf "tan(%s)" (pp e1)
-  | Diff (expression, x) -> Printf.sprintf "%s .wrt %s" (pp expression) x
-  | Let (var, expr) -> Printf.sprintf "%s = %s" var (pp expr)
-;;
 
 let p x = x |> Lexer.lex |> Parser.parse |> simplify |> pp
