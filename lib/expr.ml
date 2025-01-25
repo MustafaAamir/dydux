@@ -156,7 +156,7 @@ end
 module Parser = struct
   open Lexer
 
-  let rec parse tokens =
+  let parse tokens =
     let rec parse_add = function
       | [] -> failwith "Empty input"
       | tokens ->
@@ -237,10 +237,10 @@ let rec pow a = function
 let rec simplify expr =
   let rec derivative_engine expression wrt =
     match expression with
-    | Const c -> Const 0.0
-    | Var x -> Const 1.
-    | Mul (Const c, Var x) -> Const c
-    | Mul (Var x, Const c) -> Const c
+    | Const _ -> Const 0.0
+    | Var _ -> Const 1.
+    | Mul (Const c, Var _) -> Const c
+    | Mul (Var _, Const c) -> Const c
     | Mul (e1, e2) ->
       print_endline "here";
       let e1' = derivative_engine e1 wrt in
@@ -256,13 +256,13 @@ let rec simplify expr =
     | Mul (Var m, Var n) when m = n -> Exp(Var m, Const 2.)
     | Add (Var m, Var n) when m = n -> Mul(Const 2., Var m)
     | Add (Const 0., x) | Add (x, Const 0.) -> x
-    | Mul (Const 0., x) | Mul (x, Const 0.) -> Const 0.
+    | Mul (Const 0., _) | Mul (_, Const 0.) -> Const 0.
     | Mul (Const 1., x) | Mul (x, Const 1.) -> x
-    | Div (Const 0., x) -> Const 0.
-    | Div (x, Const 0.) -> "Division by Zero Error" |> failwith
+    | Div (Const 0., _) -> Const 0.
+    | Div (_, Const 0.) -> "Division by Zero Error" |> failwith
     | Div (Const m, Const n) -> Const (m /. n)
     | Div (x, Const 1.) -> x
-    | Exp (x, Const 0.) | Exp (Const 1., x) -> Const 1.
+    | Exp (_, Const 0.) | Exp (Const 1., _) -> Const 1.
     | Exp (x, Const 1.) -> x
     | Exp (Const m, Const n) -> Const (m ** n)
     | Sin (Const n) -> Const (sin n)
@@ -290,7 +290,7 @@ let rec pp = function
   | Const x -> safe_int_to_string x
   | Var x -> x
   | Add (e1, e2) -> Printf.sprintf "(%s + %s)" (pp e1) (pp e2)
-  | Mul(Const c, Var x) -> Printf.sprintf "(%s%s)" (pp @@ Const c) (pp @@ Var x);
+  | Mul(Const c, Var x) | Mul(Var x, Const c) -> Printf.sprintf "(%s%s)" (pp @@ Const c) (pp @@ Var x)
   | Mul(Const c, e1) -> Printf.sprintf "(%s(%s))" (pp @@ Const c) (pp e1);
   | Mul (e1, e2) -> Printf.sprintf "(%s * %s)" (pp e1) (pp e2)
   | Div (e1, e2) -> Printf.sprintf "(%s / %s)" (pp e1) (pp e2)
