@@ -1,4 +1,5 @@
 (executable
  (public_name matheatrics)
  (name main)
- (libraries matheatrics))
+ (libraries matheatrics)
+ )

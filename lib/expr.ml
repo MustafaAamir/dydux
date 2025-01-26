@@ -14,6 +14,7 @@ type expression =
   | Integral of expression * string * (float * float) option
 
 type ctxt = (string, expression) Hashtbl.t
+let ctx = Hashtbl.create 0
 
 let safe_int_to_string x =
   let diff = abs_float (x -. float_of_int (int_of_float x)) in
@@ -34,19 +35,18 @@ let rec pp = function
   | Sin e1 -> Printf.sprintf "sin(%s)" (pp e1)
   | Cos e1 -> Printf.sprintf "cos(%s)" (pp e1)
   | Tan e1 -> Printf.sprintf "tan(%s)" (pp e1)
-  | Diff (expression, x) -> Printf.sprintf "%s .wrt %s" (pp expression) x
+  | Diff (expression, x) -> Printf.sprintf "∂%s .wrt %s" (pp expression) x
   | Integral (expression, x, Some limits) ->
     Printf.sprintf
-      "%s .wrt %s{%s -> %s}"
+      "∫%s .wrt %s{%s to %s}"
       (pp expression)
       x
       (fst limits |> safe_int_to_string)
       (snd limits |> safe_int_to_string)
-  | Integral (expression, x, None) -> Printf.sprintf "%s .wrt %s" (pp expression) x
+  | Integral (expression, x, None) -> Printf.sprintf "∫%s .wrt %s" (pp expression) x
   | Let (var, expr) -> Printf.sprintf "%s = %s" var (pp expr)
 ;;
 
-let ctx = Hashtbl.create 0
 
 module Lexer = struct
   type token =
@@ -389,3 +389,4 @@ let rec simplify expr =
 ;;
 
 let p x = x |> Lexer.lex |> Parser.parse |> simplify |> pp
+
