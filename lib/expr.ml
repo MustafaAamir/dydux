@@ -1,3 +1,9 @@
+(*
+TODO: 
+    0.5. integration ffs
+    0.75. integrate e
+    1. add support for ln
+ *)
 type expression =
   | Var of string
   | Const of float
@@ -33,32 +39,32 @@ let rec prec = function
   | _ -> 10
 and pp_paren parent_prec expr =
   let self_prec = prec expr in
-  let s = pp_test expr in
+  let s = pp expr in
   if self_prec < parent_prec then "(" ^ s ^ ")" else s
-and pp_test = function
+and pp = function
   | E -> "e"
   | Const x -> if x = -1. then "-" else if x = 1. then "" else safe_int_to_string x
   | Var x -> x
   | Add (e1, e2) -> Printf.sprintf "%s + %s" (pp_paren 1 e1) (pp_paren 1 e2)
   | Sub (e1, e2) -> Printf.sprintf "%s - %s" (pp_paren 1 e1) (pp_paren 2 e2)
-  | Mul (Const c, Var x) -> Printf.sprintf "%s%s" (pp_test @@ Const c) (pp_test @@ Var x)
-  | Mul (Const c, e1) -> Printf.sprintf "%s(%s)" (pp_test @@ Const c) (pp_test e1)
+  | Mul (Const c, Var x) -> Printf.sprintf "%s%s" (pp @@ Const c) (pp @@ Var x)
+  | Mul (Const c, e1) -> Printf.sprintf "%s(%s)" (pp @@ Const c) (pp e1)
   | Mul (e1, e2) -> Printf.sprintf "%s * %s" (pp_paren 2 e1) (pp_paren 2 e2)
   | Div (e1, e2) -> Printf.sprintf "%s / %s" (pp_paren 2 e1) (pp_paren 3 e2)
   | Exp (e1, e2) -> Printf.sprintf "%s ^ %s" (pp_paren 3 e1) (pp_paren 4 e2)
-  | Sin e1 -> Printf.sprintf "sin(%s)" (pp_test e1)
-  | Cos e1 -> Printf.sprintf "cos(%s)" (pp_test e1)
-  | Tan e1 -> Printf.sprintf "tan(%s)" (pp_test e1)
-  | Diff (expression, x) -> Printf.sprintf "∂%s .wrt %s" (pp_test expression) x
+  | Sin e1 -> Printf.sprintf "sin(%s)" (pp e1)
+  | Cos e1 -> Printf.sprintf "cos(%s)" (pp e1)
+  | Tan e1 -> Printf.sprintf "tan(%s)" (pp e1)
+  | Diff (expression, x) -> Printf.sprintf "∂%s .wrt %s" (pp expression) x
   | Integral (expression, x, Some limits) ->
     Printf.sprintf
       "∫%s .wrt %s{%s to %s}"
-      (pp_test expression)
+      (pp expression)
       x
       (fst limits |> safe_int_to_string)
       (snd limits |> safe_int_to_string)
-  | Integral (expression, x, None) -> Printf.sprintf "∫%s .wrt %s" (pp_test expression) x
-  | Let (var, expr) -> Printf.sprintf "%s = %s" var (pp_test expr)
+  | Integral (expression, x, None) -> Printf.sprintf "∫%s .wrt %s" (pp expression) x
+  | Let (var, expr) -> Printf.sprintf "%s = %s" var (pp expr)
 ;;
 
 module Lexer = struct
@@ -420,4 +426,3 @@ let rec simplify expr =
 ;;
 
 let p x = x |> Lexer.lex |> Parser.parse |> simplify |> pp
-let p_test x = x |> Lexer.lex |> Parser.parse |> simplify |> pp_test
