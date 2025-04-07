@@ -7,6 +7,7 @@ A mathematical inference engine in OCaml
 > utop
 > #use "expr.ml";;
 > p "diff (sin(x)) wrt x";;
+> p "integrate (sin(x)) wrt x";;
 ```
 
 # TODO
