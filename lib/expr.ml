@@ -192,7 +192,13 @@ module Lexer = struct
   let nat st i =
     let j = ref (i + 1) in
     let has_decimal = ref false in
-    let _start = if i < st.len && st.input.[i] = '-' then (incr j; i + 1) else i in
+    let _start =
+      if i < st.len && st.input.[i] = '-'
+      then (
+        incr j;
+        i + 1)
+      else i
+    in
     (* First check the integer part *)
     while !j < st.len && is_num st.input.[!j] do
       incr j
@@ -255,7 +261,8 @@ module Lexer = struct
           else [ EOF ]
         in
         match st.input.[i] with
-        | '0' .. '9' | '-' | '+' ->
+        (* needs to match with '-', '+' not that important *)
+        | '0' .. '9' ->
           let var, j = nat st st.pos in
           Nat (float_of_string var) :: advance st (!j - st.pos)
         | ' ' | '\t' | '\n' | '\r' -> advance st 1
@@ -281,7 +288,7 @@ module Lexer = struct
            | "e" -> E :: advance st (!j - st.pos)
            | "ln" -> Ln :: advance st (!j - st.pos)
            | _ -> LVar var :: advance st (!j - st.pos))
-          |_ -> "Unexpected character: " ^ String.make 1 s.[i] |> failwith
+        | _ -> "Unexpected character: " ^ String.make 1 s.[i] |> failwith
       in
       aux 0
     | _ -> [ EOF ]
@@ -353,7 +360,7 @@ module Parser = struct
          | Some xpr -> xpr, rest
          | None -> Var x, rest)
       | Let :: LVar x :: Assign :: rest ->
-        let expr, rest' = parse_atom rest in
+        let expr, rest' = parse_add rest in
         Hashtbl.add ctx x expr;
         expr, rest'
       | Nat n :: rest -> Const n, rest
@@ -398,7 +405,7 @@ let rec subst x s expr =
 let rec simplify expr =
   let rec derivative_engine expression wrt =
     match expression with
-    | Exp(Const c, Var x) -> Mul(expression, Ln (Const c))
+    | Exp (Const c, Var _) -> Mul (expression, Ln (Const c))
     | Mul (E, Var _) | Mul (Var _, E) -> E
     | Mul (Const _, E) | Mul (E, Const _) | Exp (E, Var _) -> expression
     | Exp (E, e1) ->
@@ -431,6 +438,11 @@ let rec simplify expr =
       Div (Sub (Mul (e1', e2) |> simplify, Mul (e1, e2') |> simplify), Exp (e2, Const 2.))
       |> simplify
     | Exp (Var x, Const c) -> Mul (Const c, simplify (Exp (Var x, Const (c -. 1.))))
+    | Exp (e1, Const c) ->
+      Mul
+        ( Mul (Const c, Exp (e1, Const (c -. 1.))) |> simplify
+        , derivative_engine e1 wrt |> simplify )
+      |> simplify
     | Cos (Var x) -> Mul (Const (-1.), Sin (Var x))
     | Sin xpr -> Mul (derivative_engine xpr wrt, Cos xpr)
     | _ -> failwith "Not implemented yet"
