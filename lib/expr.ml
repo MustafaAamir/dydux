@@ -307,6 +307,10 @@ module Parser = struct
          | Symbol '+' :: rest' ->
            let right, rest'' = parse_add rest' in
            Add (left, right), rest''
+         | Symbol '-' :: rest' ->
+           let right, rest'' = parse_add rest' in
+           Sub (left, right), rest''
+
          | _ -> left, rest)
     and parse_mul = function
       | [] -> failwith "Empty input"
