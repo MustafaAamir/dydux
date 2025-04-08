@@ -23,8 +23,8 @@ type expression =
   | Let of string * expression
   | Integral of expression * string * (float * float) option
 
-let pi = Const 3.1415926535897932384626433
-let e = Const 2.718281828459045235360287471352
+let pi = 3.1415926535897932384626433
+let e = 2.718281828459045235360287471352
 let one = Const 1.
 let zero = Const 0.
 
@@ -180,11 +180,39 @@ module Lexer = struct
     String.sub st.input i (!j - i), j
   ;;
 
-  let nat st i =
+  (*
+     let nat st i =
     let j = ref (i + 1) in
     while !j < st.len && is_num st.input.[!j] do
       incr j
     done;
+    String.sub st.input i (!j - i), j
+  ;;
+  *)
+  let nat st i =
+    let j = ref (i + 1) in
+    let has_decimal = ref false in
+    let _start = if i < st.len && st.input.[i] = '-' then (incr j; i + 1) else i in
+    (* First check the integer part *)
+    while !j < st.len && is_num st.input.[!j] do
+      incr j
+    done;
+    (* Then check for decimal point followed by more numbers *)
+    if !j < st.len && st.input.[!j] = '.'
+    then (
+      has_decimal := true;
+      incr j;
+      while !j < st.len && is_num st.input.[!j] do
+        incr j
+      done);
+    (* Handle scientific notation like 1.23e-4 *)
+    if !j < st.len && (st.input.[!j] = 'e' || st.input.[!j] = 'E')
+    then (
+      incr j;
+      if !j < st.len && (st.input.[!j] = '+' || st.input.[!j] = '-') then incr j;
+      while !j < st.len && is_num st.input.[!j] do
+        incr j
+      done);
     String.sub st.input i (!j - i), j
   ;;
 
@@ -227,6 +255,9 @@ module Lexer = struct
           else [ EOF ]
         in
         match st.input.[i] with
+        | '0' .. '9' | '-' | '+' ->
+          let var, j = nat st st.pos in
+          Nat (float_of_string var) :: advance st (!j - st.pos)
         | ' ' | '\t' | '\n' | '\r' -> advance st 1
         | '(' -> LParen :: advance st 1
         | ')' -> RParen :: advance st 1
@@ -250,10 +281,7 @@ module Lexer = struct
            | "e" -> E :: advance st (!j - st.pos)
            | "ln" -> Ln :: advance st (!j - st.pos)
            | _ -> LVar var :: advance st (!j - st.pos))
-        | '0' .. '9' ->
-          let var, j = nat st st.pos in
-          Nat (float_of_string var) :: advance st (!j - st.pos)
-        | _ -> "Unexpected character: " ^ String.make 1 s.[i] |> failwith
+          |_ -> "Unexpected character: " ^ String.make 1 s.[i] |> failwith
       in
       aux 0
     | _ -> [ EOF ]
@@ -370,6 +398,7 @@ let rec subst x s expr =
 let rec simplify expr =
   let rec derivative_engine expression wrt =
     match expression with
+    | Exp(Const c, Var x) -> Mul(expression, Ln (Const c))
     | Mul (E, Var _) | Mul (Var _, E) -> E
     | Mul (Const _, E) | Mul (E, Const _) | Exp (E, Var _) -> expression
     | Exp (E, e1) ->
@@ -493,3 +522,9 @@ let rec simplify expr =
 
 let p x = x |> Lexer.lex |> Parser.parse |> simplify |> pp
 let pl x = x |> Lexer.lex |> Parser.parse |> simplify |> pp_latex
+
+let () =
+  let _ = p ("let pi = " ^ string_of_float pi) in
+  let _ = p ("let ev = " ^ string_of_float e) in
+  ()
+;;
