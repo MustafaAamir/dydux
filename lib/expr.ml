@@ -1,9 +1,11 @@
 (*
-TODO: 
+   TODO: 
     0.5. integration ffs
     0.75. integrate e
     1. add support for ln
- *)
+    2.
+*)
+
 type expression =
   | Var of string
   | Const of float
@@ -17,11 +19,14 @@ type expression =
   | Tan of expression
   | Diff of expression * string
   | E
+  | Ln of expression
   | Let of string * expression
   | Integral of expression * string * (float * float) option
 
 let pi = Const 3.1415926535897932384626433
 let e = Const 2.718281828459045235360287471352
+let one = Const 1.
+let zero = Const 0.
 
 type ctxt = (string, expression) Hashtbl.t
 
@@ -34,16 +39,19 @@ let safe_int_to_string x =
 
 let rec prec = function
   | Add _ | Sub _ -> 1
-  | Mul _ | Div _ -> 2
-  | Exp _ -> 3
+  | Div _ -> 2
+  | Mul _ -> 5
+  | Exp _ -> 7
   | _ -> 10
+
 and pp_paren parent_prec expr =
   let self_prec = prec expr in
   let s = pp expr in
   if self_prec < parent_prec then "(" ^ s ^ ")" else s
+
 and pp = function
   | E -> "e"
-  | Const x -> if x = -1. then "-" else if x = 1. then "" else safe_int_to_string x
+  | Const x -> safe_int_to_string x
   | Var x -> x
   | Add (e1, e2) -> Printf.sprintf "%s + %s" (pp_paren 1 e1) (pp_paren 1 e2)
   | Sub (e1, e2) -> Printf.sprintf "%s - %s" (pp_paren 1 e1) (pp_paren 2 e2)
@@ -55,6 +63,7 @@ and pp = function
   | Sin e1 -> Printf.sprintf "sin(%s)" (pp e1)
   | Cos e1 -> Printf.sprintf "cos(%s)" (pp e1)
   | Tan e1 -> Printf.sprintf "tan(%s)" (pp e1)
+  | Ln e1 -> Printf.sprintf "ln(%s)" (pp e1)
   | Diff (expression, x) -> Printf.sprintf "∂%s .wrt %s" (pp expression) x
   | Integral (expression, x, Some limits) ->
     Printf.sprintf
@@ -65,6 +74,46 @@ and pp = function
       (snd limits |> safe_int_to_string)
   | Integral (expression, x, None) -> Printf.sprintf "∫%s .wrt %s" (pp expression) x
   | Let (var, expr) -> Printf.sprintf "%s = %s" var (pp expr)
+;;
+
+(*abstract this away*)
+let rec pp_latex_paren parent_prec expr =
+  let self_prec = prec expr in
+  let s = pp_latex expr in
+  if self_prec < parent_prec then "\\left(" ^ s ^ "\\right)" else s
+
+and pp_latex = function
+  | E -> "e"
+  | Const x -> safe_int_to_string x
+  | Var x -> x
+  | Add (e1, e2) -> Printf.sprintf "%s + %s" (pp_latex_paren 1 e1) (pp_latex_paren 1 e2)
+  | Sub (e1, e2) -> Printf.sprintf "%s - %s" (pp_latex_paren 1 e1) (pp_latex_paren 2 e2)
+  | Mul (Const c, Var x) -> Printf.sprintf "%s%s" (pp_latex (Const c)) (pp_latex (Var x))
+  | Mul (Const c, e) ->
+    Printf.sprintf "%s\\left(%s\\right)" (pp_latex (Const c)) (pp_latex e)
+  | Mul (e1, e2) ->
+    Printf.sprintf "%s \\cdot %s" (pp_latex_paren 2 e1) (pp_latex_paren 2 e2)
+  | Div (e1, e2) -> Printf.sprintf "\\frac{%s}{%s}" (pp_latex e1) (pp_latex e2)
+  | Exp (e1, e2) -> Printf.sprintf "%s^{%s}" (pp_latex_paren 3 e1) (pp_latex_paren 4 e2)
+  | Sin e -> Printf.sprintf "\\sin\\left(%s\\right)" (pp_latex e)
+  | Cos e -> Printf.sprintf "\\cos\\left(%s\\right)" (pp_latex e)
+  | Tan e -> Printf.sprintf "\\tan\\left(%s\\right)" (pp_latex e)
+  | Ln e -> Printf.sprintf "\\ln\\left(%s\\right)" (pp_latex e)
+  | Diff (expression, x) ->
+    Printf.sprintf
+      "\\frac{\\partial}{\\partial %s} \\left(%s\\right)"
+      x
+      (pp_latex expression)
+  | Integral (expression, x, Some (a, b)) ->
+    Printf.sprintf
+      "\\int_{%s}^{%s} %s\\, d%s"
+      (safe_int_to_string a)
+      (safe_int_to_string b)
+      (pp_latex expression)
+      x
+  | Integral (expression, x, None) ->
+    Printf.sprintf "\\int %s\\, d%s" (pp_latex expression) x
+  | Let (var, expr) -> Printf.sprintf "%s = %s" var (pp_latex expr)
 ;;
 
 module Lexer = struct
@@ -82,6 +131,7 @@ module Lexer = struct
     | Sin
     | Cos
     | Tan
+    | Ln
     | E
     | LDiff
     | LIntegral
@@ -198,6 +248,7 @@ module Lexer = struct
            | "let" -> Let :: advance st (!j - st.pos)
            | "integrate" -> LIntegral :: advance st (!j - st.pos)
            | "e" -> E :: advance st (!j - st.pos)
+           | "ln" -> Ln :: advance st (!j - st.pos)
            | _ -> LVar var :: advance st (!j - st.pos))
         | '0' .. '9' ->
           let var, j = nat st st.pos in
@@ -245,6 +296,9 @@ module Parser = struct
          | _ -> left, rest)
     and parse_atom = function
       | [] -> failwith "Empty input"
+      | Ln :: rest ->
+        let expr, rest' = parse_atom rest in
+        Ln expr, rest'
       | Sin :: rest ->
         let expr, rest' = parse_atom rest in
         Sin expr, rest'
@@ -306,6 +360,7 @@ let rec subst x s expr =
   | Add (e1, e2) -> Add (subst x s e1, subst x s e2)
   | Exp (e1, e2) -> Exp (subst x s e1, subst x s e2)
   | Sin e1 -> Sin (subst x s e1)
+  | Ln e1 -> Ln (subst x s e1)
   | Cos e1 -> Cos (subst x s e1)
   | Tan e1 -> Tan (subst x s e1)
   | Integral (e1, wrt, limits) -> Integral (subst x s e1, wrt, limits)
@@ -333,6 +388,9 @@ let rec simplify expr =
       let e1' = simplify (derivative_engine e1 wrt) in
       let e2' = simplify (derivative_engine e2 wrt) in
       Sub (e1', e2')
+    | Ln e ->
+      let e' = simplify (derivative_engine e wrt) in
+      Mul (e', Div (one, e) |> simplify) |> simplify
     | Mul (Const c, Var _) | Mul (Var _, Const c) -> Const c
     | Mul (e1, e2) ->
       let e1' = simplify (derivative_engine e1 wrt) in
@@ -407,6 +465,13 @@ let rec simplify expr =
     | Sin (Const n) -> Const (sin n)
     | Cos (Const n) -> Const (cos n)
     | Tan (Const n) -> Const (tan n)
+    | Ln E -> Const 1.
+    | Exp (E, Ln x) -> x
+    | Ln (Mul (E, x)) | Ln (Mul (x, E)) -> Add (Const 1., Ln x)
+    | Add (Ln x, Ln y) -> Ln (Mul (x, y))
+    | Sub (Ln x, Ln y) -> Ln (Div (x, y))
+    | Ln (Exp (E, y)) -> y
+    | Ln (Exp (x, y)) -> Mul (y, Ln x)
     | _ -> expr
   in
   match expr with
@@ -417,6 +482,7 @@ let rec simplify expr =
   | Sin e -> Sin (simplify e) |> simplify'
   | Cos e -> Cos (simplify e) |> simplify'
   | Tan e -> Tan (simplify e) |> simplify'
+  | Ln e -> Ln (simplify e) |> simplify'
   | Diff (expression, x) -> derivative_engine (simplify expression) x |> simplify
   | Integral (expression, x, Some (l1, l2)) ->
     integral_engine (simplify expression) x (Some (l1, l2)) |> simplify
@@ -426,3 +492,4 @@ let rec simplify expr =
 ;;
 
 let p x = x |> Lexer.lex |> Parser.parse |> simplify |> pp
+let pl x = x |> Lexer.lex |> Parser.parse |> simplify |> pp_latex
