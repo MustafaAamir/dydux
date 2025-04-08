@@ -471,12 +471,50 @@ let rec simplify expr =
         let ie = simplify e in
         let dif = derivative_engine ie wrt in
         Mul (Div (Const 1., dif) |> simplify, Sin ie) |> simplify
+      | Tan e ->
+        let ie = simplify e in
+        let dif = derivative_engine ie wrt in
+        Mul (Div (Const (-1.), dif) |> simplify, Ln (Cos ie)) |> simplify
       | Add (e1, e2) ->
         Add
           ( integral_engine (simplify e1) wrt limits
           , integral_engine (simplify e2) wrt limits )
       | Sub (e1, e2) ->
         Sub
+          ( integral_engine (simplify e1) wrt limits
+          , integral_engine (simplify e2) wrt limits )
+      | Mul (e1, e2) ->
+        let is_proportional expr1 expr2 =
+          match Div (expr1, expr2) |> simplify with
+          | Const _ -> true
+          | _ -> false
+        in
+        match e1, e2 with
+        | Exp (base, Const n), other ->
+          let base_deriv = derivative_engine base wrt |> simplify in
+          if is_proportional other base_deriv then
+            let k = Div (other, base_deriv) |> simplify in
+            Mul (k, Div (Exp (base, Const (n +. 1.)), Const (n +. 1.))) |> simplify
+          else
+            Add (integral_engine e1 wrt limits, integral_engine e2 wrt limits)
+        | other, Exp (base, Const n) ->
+          let base_deriv = derivative_engine base wrt |> simplify in
+          if is_proportional other base_deriv then
+            let k = Div (other, base_deriv) |> simplify in
+            Mul (k, Div (Exp (base, Const (n +. 1.)), Const (n +. 1.))) |> simplify
+          else
+            Add (integral_engine e1 wrt limits, integral_engine e2 wrt limits)
+        | _ -> 
+          Add (integral_engine e1 wrt limits, integral_engine e2 wrt limits)
+      | Div (num, Exp (base, Const n)) ->
+        let base_deriv = derivative_engine base wrt |> simplify in
+        if is_proportional num base_deriv then
+          let k = Div (num, base_deriv) |> simplify in
+          Mul (k, Ln (Exp (base, Const 1.))) |> simplify
+        else
+          expression
+      | Add (e1, e2) ->
+        Add
           ( integral_engine (simplify e1) wrt limits
           , integral_engine (simplify e2) wrt limits )
       | _ -> expression
