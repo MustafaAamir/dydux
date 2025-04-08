@@ -20,11 +20,17 @@ cd into lib/ and do this
 > p "integrate (sin(x)) wrt x";;
 ```
 
+no need for this anymore, just run the repl in bin
+
 1. haven't implemented limits yet but the blueprint is there. 
 
 #### LaTeX output
 ```shell
 > pl "diff (sin(x)) wrt x"
+
+UPDATE: 
+use `#toggle_latex`
+
 ```
 
 
