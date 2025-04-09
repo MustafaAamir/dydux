@@ -507,13 +507,20 @@ let rec simplify expr =
           else
            expression 
         | _ -> Add (integral_engine e1 wrt limits, integral_engine e2 wrt limits) end
-      | Div (num, Exp (base, Const _)) ->
+      | Div (num, Exp (base, Const n)) ->
+        
         let base_deriv = derivative_engine base wrt |> simplify in
-        if is_proportional num base_deriv then(
+        
+        if is_proportional num base_deriv then (
+          
           let k = Div (num, base_deriv) |> simplify in
-          Mul (k, Ln (Exp (base, Const 1.))) |> simplify)
-        else
+          
+          let result = Div(Mul (k, (Exp (base, Mul (Const (-1.), Sub ( Const n, Const (1.)) |> simplify) |> simplify))) , Mul (Const (-1.), Sub ( Const n, Const (1.)) |> simplify) |> simplify) |> simplify in
+          result
+        ) else (
+          
           expression |> simplify
+        )
       | _ -> expression |> simplify
     in
     (* seperate in a seperate function to avoid + c's being appended in recursive calls *)
@@ -539,6 +546,10 @@ let rec simplify expr =
     | Div (_, Const 0.) -> "Division by Zero Error" |> failwith
     | Div (Const m, Const n) -> Const (m /. n)
     | Div (x, Const 1.) -> x
+    | Div (Var x, Var y) when x = y -> Const 1.
+    | Div (Var x, Mul (Const c, Var y)) when x = y -> Const (1. /. c)
+    | Div (Mul (Const c, Var x), Var y) when x = y -> Const c
+    | Div (Mul (Const a, Var x), Mul (Const b, Var y)) when x = y -> Const (a /. b)
     | Exp (_, Const 0.) | Exp (Const 1., _) -> Const 1.
     | Exp (x, Const 1.) -> x
     | Exp (Const m, Const n) -> Const (m ** n)

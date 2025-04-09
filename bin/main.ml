@@ -2,7 +2,7 @@ open Matheatrics
 open Stdlib
 
 let toggle_latex = ref false
-
+(*
 let rec input prompt cb =
   match LNoise.linenoise prompt with
   | None -> ()
@@ -43,8 +43,8 @@ let () =
         Printf.sprintf "TeX = %s" result |> print_endline)))
   |> input " λ > "
 ;;
+*)
 
-(*
    let rec repl () =
   print_string "> ";
   flush stdout;
@@ -76,4 +76,4 @@ let () =
 ;;
 
 let () = repl ()
-*)
+
