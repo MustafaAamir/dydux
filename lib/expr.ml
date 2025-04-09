@@ -452,6 +452,12 @@ let rec simplify expr =
     | _ -> failwith "Not implemented yet"
   in
   let rec integral_engine (expression : expression) wrt (limits : (float * float) option) =
+    let is_proportional expr1 expr2 =
+      match Div (expr1 |> simplify, expr2 |> simplify) |> simplify with
+      | Const _ -> true
+      | _ -> false
+    in
+
     let res =
       match simplify expression with
       | Var x when x = wrt ->
@@ -461,6 +467,7 @@ let rec simplify expr =
         let num = Exp (Var v, Const (c +. 1.)) |> simplify in
         Div (num, Const (c +. 1.)) |> simplify
       | Const c -> Mul (Const c, Var wrt)
+      | Div (Const c, expr) ->  Div(Mul(Const c, Ln(expr)) |> simplify, derivative_engine expr wrt |> simplify) |> simplify
       | Mul (Const c, Var v) ->
         Mul (Const c, Div (Exp (Var v, Const 2.) |> simplify, Const 2.)) |> simplify
       | Sin e ->
@@ -483,12 +490,7 @@ let rec simplify expr =
         Sub
           ( integral_engine (simplify e1) wrt limits
           , integral_engine (simplify e2) wrt limits )
-      | Mul (e1, e2) ->
-        let is_proportional expr1 expr2 =
-          match Div (expr1, expr2) |> simplify with
-          | Const _ -> true
-          | _ -> false
-        in
+      | Mul (e1, e2) ->begin
         match e1, e2 with
         | Exp (base, Const n), other ->
           let base_deriv = derivative_engine base wrt |> simplify in
@@ -496,28 +498,23 @@ let rec simplify expr =
             let k = Div (other, base_deriv) |> simplify in
             Mul (k, Div (Exp (base, Const (n +. 1.)), Const (n +. 1.))) |> simplify
           else
-            Add (integral_engine e1 wrt limits, integral_engine e2 wrt limits)
+                    expression
         | other, Exp (base, Const n) ->
           let base_deriv = derivative_engine base wrt |> simplify in
           if is_proportional other base_deriv then
             let k = Div (other, base_deriv) |> simplify in
             Mul (k, Div (Exp (base, Const (n +. 1.)), Const (n +. 1.))) |> simplify
           else
-            Add (integral_engine e1 wrt limits, integral_engine e2 wrt limits)
-        | _ -> 
-          Add (integral_engine e1 wrt limits, integral_engine e2 wrt limits)
-      | Div (num, Exp (base, Const n)) ->
+           expression 
+        | _ -> Add (integral_engine e1 wrt limits, integral_engine e2 wrt limits) end
+      | Div (num, Exp (base, Const _)) ->
         let base_deriv = derivative_engine base wrt |> simplify in
-        if is_proportional num base_deriv then
+        if is_proportional num base_deriv then(
           let k = Div (num, base_deriv) |> simplify in
-          Mul (k, Ln (Exp (base, Const 1.))) |> simplify
+          Mul (k, Ln (Exp (base, Const 1.))) |> simplify)
         else
-          expression
-      | Add (e1, e2) ->
-        Add
-          ( integral_engine (simplify e1) wrt limits
-          , integral_engine (simplify e2) wrt limits )
-      | _ -> expression
+          expression |> simplify
+      | _ -> expression |> simplify
     in
     (* seperate in a seperate function to avoid + c's being appended in recursive calls *)
     match limits with
