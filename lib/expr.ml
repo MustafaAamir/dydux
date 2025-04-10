@@ -617,9 +617,9 @@ let rec simplify expr =
         else expression |> simplify
       | _ -> expression |> simplify
     in
-    (* seperate in a seperate function to avoid + c's being appended in recursive calls *)
     match limits with
     | Some (l1, l2) ->
+      integral_flag := false
       Sub (subst wrt (Const l2) res |> simplify, subst wrt (Const l1) res |> simplify)
       |> simplify
     | None -> res |> simplify
