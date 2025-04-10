@@ -458,6 +458,80 @@ let rec simplify expr =
       | _ -> false
     in
 
+    let rec contains_var expr var =
+      match expr with
+      | Var v -> v = var
+      | Const _ -> false
+      | Add (a, b) | Sub (a, b) | Mul (a, b) | Div (a, b) -> contains_var a var || contains_var b var
+      | Exp (a, b) -> contains_var a var || contains_var b var
+      | Sin a | Cos a | Tan a | Ln a -> contains_var a var
+      | E -> false
+      | Diff (e, x) -> contains_var e var || x = var
+      | Let (x, e) -> x = var || contains_var e var
+      | Integral (e, x, _) -> contains_var e var || x = var
+    in
+
+    let is_algebraic expr wrt=
+      match simplify expr with
+      | Exp (Var v, Const n) when v = wrt && n > 0. -> true
+      | Var v when v = wrt -> true  (* x = x^1 *)
+      | _ -> false
+    in
+
+    let is_trigonometric expr wrt =
+      match simplify expr with
+      | Sin e | Cos e | Tan e -> contains_var e wrt
+      | _ -> false
+    in
+
+    let is_exponential expr wrt =
+      Printf.printf "Checking if exponential: %s\n" (pp expr);
+      match expr with
+      | Exp (E, e) -> 
+        Printf.printf "Found Exp(E, %s)\n" (pp e);
+        let contains = contains_var e wrt in
+        Printf.printf "Contains var %s: %b\n" wrt contains;
+        contains
+      | _ -> 
+        Printf.printf "No match for exponential\n";
+        false
+    in
+
+    let is_logarithmic expr wrt =
+      match simplify expr with
+      | Ln e -> contains_var e wrt
+      | _ -> false
+    in
+
+    let classify expr wrt =
+      if is_algebraic expr wrt then `Algebraic
+      else if is_exponential expr wrt then `Exponential
+      else if is_trigonometric expr wrt then `Trigonometric
+      else if is_logarithmic expr wrt then `Logarithmic
+      else `Other
+    in
+
+    let rec differentiate_until_zero expr =
+      match simplify expr with
+      | Const 0. -> []
+      | e -> e :: differentiate_until_zero (derivative_engine e wrt)
+    in
+
+    let rec integrate_n expr n =
+      if n <= 0 then []
+      else (integral_engine expr wrt limits) :: integrate_n (integral_engine expr wrt limits) (n - 1)
+    in
+
+    let rec di_method diffs ints sign =
+      match diffs, ints with
+      | d :: ds, i :: is ->
+          let term =
+            if sign then Mul (d, i) else Mul (Const (-1.), Mul (d, i))
+          in
+          term :: di_method ds is (not sign)
+      | _, _ -> []
+    in
+
     let res =
       match simplify expression with
       | Var x when x = wrt ->
@@ -490,23 +564,38 @@ let rec simplify expr =
         Sub
           ( integral_engine (simplify e1) wrt limits
           , integral_engine (simplify e2) wrt limits )
-      | Mul (e1, e2) ->begin
+      | Mul (e1, e2) -> begin
+        Printf.printf " multiplicatio\n";
         match e1, e2 with
-        | Exp (base, Const n), other ->
-          let base_deriv = derivative_engine base wrt |> simplify in
-          if is_proportional other base_deriv then
-            let k = Div (other, base_deriv) |> simplify in
-            Mul (k, Div (Exp (base, Const (n +. 1.)), Const (n +. 1.))) |> simplify
-          else
-                    expression
-        | other, Exp (base, Const n) ->
-          let base_deriv = derivative_engine base wrt |> simplify in
-          if is_proportional other base_deriv then
-            let k = Div (other, base_deriv) |> simplify in
-            Mul (k, Div (Exp (base, Const (n +. 1.)), Const (n +. 1.))) |> simplify
-          else
-           expression 
-        | _ -> Add (integral_engine e1 wrt limits, integral_engine e2 wrt limits) end
+        | _ ->  
+          Printf.printf "Case 3: General multiplication\n";
+          let class1 = classify e1 wrt in
+          let class2 = classify e2 wrt in
+          Printf.printf "Expression 1 (%s) classified as: %s\n" (pp e1) 
+            (match class1 with
+              | `Algebraic -> "Algebraic"
+              | `Exponential -> "Exponential"
+              | `Trigonometric -> "Trigonometric"
+              | `Logarithmic -> "Logarithmic"
+              | `Other -> "Other");
+          Printf.printf "Expression 2 (%s) classified as: %s\n" (pp e2)
+            (match class2 with
+              | `Algebraic -> "Algebraic"
+              | `Exponential -> "Exponential"
+              | `Trigonometric -> "Trigonometric"
+              | `Logarithmic -> "Logarithmic"
+              | `Other -> "Other");
+          if class1 = `Algebraic || class2 = `Algebraic then (
+            Printf.printf "Case 4: Algebraic multiplication\n";
+            let (u, dv) = if class1 = `Algebraic then (e1, e2) else (e2, e1) in
+            Printf.printf "u: %s, dv: %s\n" (pp u) (pp dv);
+            let diffs = differentiate_until_zero u in
+            let ints = integrate_n dv (List.length diffs) in
+            let terms = di_method diffs ints true in
+            List.fold_left (fun acc term -> Add (acc, term)) (Const 0.) terms
+          ) else
+            expression |> simplify
+        end
       | Div (num, Exp (base, Const n)) ->
         
         let base_deriv = derivative_engine base wrt |> simplify in

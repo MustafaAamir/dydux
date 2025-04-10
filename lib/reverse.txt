@@ -1,0 +1,16 @@
+(*| Exp (base, Const n), other ->
+          Printf.printf "Case 1: General multiplication\n";
+          let base_deriv = derivative_engine base wrt |> simplify in
+          if is_proportional other base_deriv then
+            let k = Div (other, base_deriv) |> simplify in
+            Mul (k, Div (Exp (base, Const (n +. 1.)), Const (n +. 1.))) |> simplify
+          else
+            expression
+        | other, Exp (base, Const n) ->
+          Printf.printf "Case 2: General multiplication\n";
+          let base_deriv = derivative_engine base wrt |> simplify in
+          if is_proportional other base_deriv then
+            let k = Div (other, base_deriv) |> simplify in
+            Mul (k, Div (Exp (base, Const (n +. 1.)), Const (n +. 1.))) |> simplify
+          else
+           expression *)
