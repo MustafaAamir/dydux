@@ -27,7 +27,7 @@ let pi = 3.1415926535897932384626433
 let e = 2.718281828459045235360287471352
 let one = Const 1.
 let zero = Const 0.
-
+let integral_flag = ref false
 type ctxt = (string, expression) Hashtbl.t
 
 let ctx = Hashtbl.create 0
@@ -617,7 +617,7 @@ let rec simplify expr =
     | Some (l1, l2) ->
       Sub (subst wrt (Const l2) res |> simplify, subst wrt (Const l1) res |> simplify)
       |> simplify
-    | None -> Add (res, Var "c")
+    | None -> res |> simplify
   in
   let simplify' = function
     | Add (Const m, Const n) -> Const (m +. n)
@@ -665,14 +665,22 @@ let rec simplify expr =
   | Ln e -> Ln (simplify e) |> simplify'
   | Diff (expression, x) -> derivative_engine (simplify expression) x |> simplify
   | Integral (expression, x, Some (l1, l2)) ->
+    integral_flag := true;
     integral_engine (simplify expression) x (Some (l1, l2)) |> simplify
   | Integral (expression, x, None) ->
+    integral_flag := true;
     integral_engine (simplify expression) x None |> simplify
   | _ -> simplify' expr
 ;;
 
-let p x = x |> Lexer.lex |> Parser.parse |> simplify |> pp
-let pl x = x |> Lexer.lex |> Parser.parse |> simplify |> pp_latex
+let post_process_integral flag (expr : expression) = 
+    match !flag with 
+    | true -> flag := false; Add(expr, Var "c")
+    | false -> flag := false;  expr
+;;
+
+let p x = x |> Lexer.lex |> Parser.parse |> simplify |> post_process_integral integral_flag |> pp
+let pl x = x |> Lexer.lex |> Parser.parse |> simplify |> post_process_integral integral_flag |> pp_latex
 
 let () =
   let _ = p ("let pi = " ^ string_of_float pi) in
