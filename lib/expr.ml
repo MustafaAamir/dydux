@@ -28,6 +28,7 @@ let e = 2.718281828459045235360287471352
 let one = Const 1.
 let zero = Const 0.
 let integral_flag = ref false
+
 type ctxt = (string, expression) Hashtbl.t
 
 let ctx = Hashtbl.create 0
@@ -310,7 +311,6 @@ module Parser = struct
          | Symbol '-' :: rest' ->
            let right, rest'' = parse_add rest' in
            Sub (left, right), rest''
-
          | _ -> left, rest)
     and parse_mul = function
       | [] -> failwith "Empty input"
@@ -457,12 +457,12 @@ let rec simplify expr =
       | Const _ -> true
       | _ -> false
     in
-
     let rec contains_var expr var =
       match expr with
       | Var v -> v = var
       | Const _ -> false
-      | Add (a, b) | Sub (a, b) | Mul (a, b) | Div (a, b) -> contains_var a var || contains_var b var
+      | Add (a, b) | Sub (a, b) | Mul (a, b) | Div (a, b) ->
+        contains_var a var || contains_var b var
       | Exp (a, b) -> contains_var a var || contains_var b var
       | Sin a | Cos a | Tan a | Ln a -> contains_var a var
       | E -> false
@@ -470,68 +470,64 @@ let rec simplify expr =
       | Let (x, e) -> x = var || contains_var e var
       | Integral (e, x, _) -> contains_var e var || x = var
     in
-
-    let is_algebraic expr wrt=
+    let is_algebraic expr wrt =
       match simplify expr with
       | Exp (Var v, Const n) when v = wrt && n > 0. -> true
-      | Var v when v = wrt -> true  (* x = x^1 *)
+      | Var v when v = wrt -> true (* x = x^1 *)
       | _ -> false
     in
-
     let is_trigonometric expr wrt =
       match simplify expr with
       | Sin e | Cos e | Tan e -> contains_var e wrt
       | _ -> false
     in
-
     let is_exponential expr wrt =
       Printf.printf "Checking if exponential: %s\n" (pp expr);
       match expr with
-      | Exp (E, e) -> 
+      | Exp (E, e) ->
         Printf.printf "Found Exp(E, %s)\n" (pp e);
         let contains = contains_var e wrt in
         Printf.printf "Contains var %s: %b\n" wrt contains;
         contains
-      | _ -> 
+      | _ ->
         Printf.printf "No match for exponential\n";
         false
     in
-
     let is_logarithmic expr wrt =
       match simplify expr with
       | Ln e -> contains_var e wrt
       | _ -> false
     in
-
     let classify expr wrt =
-      if is_algebraic expr wrt then `Algebraic
-      else if is_exponential expr wrt then `Exponential
-      else if is_trigonometric expr wrt then `Trigonometric
-      else if is_logarithmic expr wrt then `Logarithmic
+      if is_algebraic expr wrt
+      then `Algebraic
+      else if is_exponential expr wrt
+      then `Exponential
+      else if is_trigonometric expr wrt
+      then `Trigonometric
+      else if is_logarithmic expr wrt
+      then `Logarithmic
       else `Other
     in
-
     let rec differentiate_until_zero expr =
       match simplify expr with
       | Const 0. -> []
       | e -> e :: differentiate_until_zero (derivative_engine e wrt)
     in
-
     let rec integrate_n expr n =
-      if n <= 0 then []
-      else (integral_engine expr wrt limits) :: integrate_n (integral_engine expr wrt limits) (n - 1)
+      if n <= 0
+      then []
+      else
+        integral_engine expr wrt limits
+        :: integrate_n (integral_engine expr wrt limits) (n - 1)
     in
-
     let rec di_method diffs ints sign =
       match diffs, ints with
       | d :: ds, i :: is ->
-          let term =
-            if sign then Mul (d, i) else Mul (Const (-1.), Mul (d, i))
-          in
-          term :: di_method ds is (not sign)
+        let term = if sign then Mul (d, i) else Mul (Const (-1.), Mul (d, i)) in
+        term :: di_method ds is (not sign)
       | _, _ -> []
     in
-
     let res =
       match simplify expression with
       | Var x when x = wrt ->
@@ -541,7 +537,9 @@ let rec simplify expr =
         let num = Exp (Var v, Const (c +. 1.)) |> simplify in
         Div (num, Const (c +. 1.)) |> simplify
       | Const c -> Mul (Const c, Var wrt)
-      | Div (Const c, expr) ->  Div(Mul(Const c, Ln(expr)) |> simplify, derivative_engine expr wrt |> simplify) |> simplify
+      | Div (Const c, expr) ->
+        Div (Mul (Const c, Ln expr) |> simplify, derivative_engine expr wrt |> simplify)
+        |> simplify
       | Mul (Const c, Var v) ->
         Mul (Const c, Div (Exp (Var v, Const 2.) |> simplify, Const 2.)) |> simplify
       | Sin e ->
@@ -564,52 +562,59 @@ let rec simplify expr =
         Sub
           ( integral_engine (simplify e1) wrt limits
           , integral_engine (simplify e2) wrt limits )
-      | Mul (e1, e2) -> begin
+      | Mul (e1, e2) ->
         Printf.printf " multiplicatio\n";
-        match e1, e2 with
-        | _ ->  
-          Printf.printf "Case 3: General multiplication\n";
-          let class1 = classify e1 wrt in
-          let class2 = classify e2 wrt in
-          Printf.printf "Expression 1 (%s) classified as: %s\n" (pp e1) 
-            (match class1 with
+        (match e1, e2 with
+         | _ ->
+           Printf.printf "Case 3: General multiplication\n";
+           let class1 = classify e1 wrt in
+           let class2 = classify e2 wrt in
+           Printf.printf
+             "Expression 1 (%s) classified as: %s\n"
+             (pp e1)
+             (match class1 with
               | `Algebraic -> "Algebraic"
               | `Exponential -> "Exponential"
               | `Trigonometric -> "Trigonometric"
               | `Logarithmic -> "Logarithmic"
               | `Other -> "Other");
-          Printf.printf "Expression 2 (%s) classified as: %s\n" (pp e2)
-            (match class2 with
+           Printf.printf
+             "Expression 2 (%s) classified as: %s\n"
+             (pp e2)
+             (match class2 with
               | `Algebraic -> "Algebraic"
               | `Exponential -> "Exponential"
               | `Trigonometric -> "Trigonometric"
               | `Logarithmic -> "Logarithmic"
               | `Other -> "Other");
-          if class1 = `Algebraic || class2 = `Algebraic then (
-            Printf.printf "Case 4: Algebraic multiplication\n";
-            let (u, dv) = if class1 = `Algebraic then (e1, e2) else (e2, e1) in
-            Printf.printf "u: %s, dv: %s\n" (pp u) (pp dv);
-            let diffs = differentiate_until_zero u in
-            let ints = integrate_n dv (List.length diffs) in
-            let terms = di_method diffs ints true in
-            List.fold_left (fun acc term -> Add (acc, term)) (Const 0.) terms
-          ) else
-            expression |> simplify
-        end
+           if class1 = `Algebraic || class2 = `Algebraic
+           then (
+             Printf.printf "Case 4: Algebraic multiplication\n";
+             let u, dv = if class1 = `Algebraic then e1, e2 else e2, e1 in
+             Printf.printf "u: %s, dv: %s\n" (pp u) (pp dv);
+             let diffs = differentiate_until_zero u in
+             let ints = integrate_n dv (List.length diffs) in
+             let terms = di_method diffs ints true in
+             List.fold_left (fun acc term -> Add (acc, term)) (Const 0.) terms)
+           else expression |> simplify)
       | Div (num, Exp (base, Const n)) ->
-        
         let base_deriv = derivative_engine base wrt |> simplify in
-        
-        if is_proportional num base_deriv then (
-          
+        if is_proportional num base_deriv
+        then (
           let k = Div (num, base_deriv) |> simplify in
-          
-          let result = Div(Mul (k, (Exp (base, Mul (Const (-1.), Sub ( Const n, Const (1.)) |> simplify) |> simplify))) , Mul (Const (-1.), Sub ( Const n, Const (1.)) |> simplify) |> simplify) |> simplify in
-          result
-        ) else (
-          
-          expression |> simplify
-        )
+          let result =
+            Div
+              ( Mul
+                  ( k
+                  , Exp
+                      ( base
+                      , Mul (Const (-1.), Sub (Const n, Const 1.) |> simplify) |> simplify
+                      ) )
+              , Mul (Const (-1.), Sub (Const n, Const 1.) |> simplify) |> simplify )
+            |> simplify
+          in
+          result)
+        else expression |> simplify
       | _ -> expression |> simplify
     in
     (* seperate in a seperate function to avoid + c's being appended in recursive calls *)
@@ -673,14 +678,28 @@ let rec simplify expr =
   | _ -> simplify' expr
 ;;
 
-let post_process_integral flag (expr : expression) = 
-    match !flag with 
-    | true -> flag := false; Add(expr, Var "c")
-    | false -> flag := false;  expr
+let post_process_integral flag (expr : expression) =
+  match !flag with
+  | true ->
+    flag := false;
+    Add (expr, Var "c")
+  | false ->
+    flag := false;
+    expr
 ;;
 
-let p x = x |> Lexer.lex |> Parser.parse |> simplify |> post_process_integral integral_flag |> pp
-let pl x = x |> Lexer.lex |> Parser.parse |> simplify |> post_process_integral integral_flag |> pp_latex
+let p x =
+  x |> Lexer.lex |> Parser.parse |> simplify |> post_process_integral integral_flag |> pp
+;;
+
+let pl x =
+  x
+  |> Lexer.lex
+  |> Parser.parse
+  |> simplify
+  |> post_process_integral integral_flag
+  |> pp_latex
+;;
 
 let () =
   let _ = p ("let pi = " ^ string_of_float pi) in
