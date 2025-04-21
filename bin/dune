@@ -1,4 +1,4 @@
 (executable
- (public_name matheatrics)
+ (public_name dydux)
  (name main)
- (libraries matheatrics linenoise))
+ (libraries dydux))

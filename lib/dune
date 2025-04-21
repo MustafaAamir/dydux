@@ -1,4 +1,4 @@
 (library
- (name matheatrics)
- (public_name matheatrics)
+ (name dydux)
+ (public_name dydux)
  (modules expr engine types))
