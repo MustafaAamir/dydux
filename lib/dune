@@ -1,4 +1,4 @@
 (library
  (name matheatrics)
  (public_name matheatrics)
- (modules expr))
+ (modules expr engine types))
