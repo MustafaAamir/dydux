@@ -1,5 +1,20 @@
-open Matheatrics
+open Matheatrics.Engine
+open Matheatrics.Expr
 open Stdlib
+
+let p x =
+  x
+  |> Lexer.lex
+  |> Parser.parse
+  |> Engine.simplify
+  |> Engine.post_process_integral integral_flag
+;;
+
+let () =
+  let _ = p ("let pi = " ^ string_of_float pi) in
+  let _ = p ("let ev = " ^ string_of_float e) in
+  ()
+;;
 
 let toggle_latex = ref false
 (*
@@ -61,14 +76,15 @@ let rec repl () =
     repl ())
   else (
     try
-      let result = Expr.p input in
-      print_endline result;
+      let result = p input in
       if !toggle_latex = true
       then (
-        let result = Expr.pl input in
-        print_endline result;
+        result |> P.latex |> print_endline;
         repl ())
-      else repl ()
+      else (
+        let result = p input in
+        result |> P.print |> print_endline;
+        repl ())
     with
     | _ ->
       print_endline "Error";
