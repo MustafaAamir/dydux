@@ -3,7 +3,7 @@ open Stdlib
 
 let toggle_latex = ref false
 (*
-let rec input prompt cb =
+   let rec input prompt cb =
   match LNoise.linenoise prompt with
   | None -> ()
   | Some v ->
@@ -45,7 +45,7 @@ let () =
 ;;
 *)
 
-   let rec repl () =
+let rec repl () =
   print_string "> ";
   flush stdout;
   let input = read_line () in
@@ -76,4 +76,3 @@ let () =
 ;;
 
 let () = repl ()
-
