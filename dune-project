@@ -7,9 +7,9 @@
 (source
  (github MustafaAamir/dydux))
 
-(authors "Author Name <author@example.com>")
+(authors "Mustafa Aamir <mustafa.290101@gmail.com>", "Yusuf Sabuwalla <yusuff.0279@gmailcom>")
 
-(maintainers "Maintainer Name <maintainer@example.com>")
+(maintainers "Mustafa Aamir <mustafa.290101@gmail.com>")
 
 (license LICENSE)
 
@@ -17,8 +17,8 @@
 
 (package
  (name dydux)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "A mathematical inference engine")
+ (description "an inference engine to reduce a subset of mathematical expressoins")
  (depends ocaml)
  (tags
   ("add topics" "to describe" your project)))
