@@ -12,12 +12,12 @@ Under development. A mathematical inference engine in OCaml
 8. I don't rmr if i added evaluating for trig functions. that's not the goal. it's an algebraic engine, not a scientific calculator.
 
 
-cd into lib/ and do this
+in the root directory:
 ```shell
-> utop
-> #use "expr.ml";;
-> p "diff (sin(x)) wrt x";;
-> p "integrate (sin(x)) wrt x";;
+$ dune exec dydux
+
+> diff (sin(x)) wrt x
+> integrate (sin(x)) wrt x
 ```
 
 no need for this anymore, just run the repl in bin
@@ -26,10 +26,8 @@ no need for this anymore, just run the repl in bin
 
 #### LaTeX output
 ```shell
-> pl "diff (sin(x)) wrt x"
-
-UPDATE: 
-use `#toggle_latex`
+> diff (sin(x)) wrt x
+> #toggle_latex
 
 ```
 
