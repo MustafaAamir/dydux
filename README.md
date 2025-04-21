@@ -1,4 +1,4 @@
-# matheatrics
+# Dydux 
 Under development. A mathematical inference engine in OCaml
 
 # Usage
