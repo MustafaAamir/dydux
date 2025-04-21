@@ -1,5 +1,5 @@
-open Matheatrics.Engine
-open Matheatrics.Expr
+open Dydux.Engine
+open Dydux.Expr
 open Stdlib
 
 let p x =
@@ -10,6 +10,18 @@ let p x =
   |> Engine.post_process_integral integral_flag
 ;;
 
+let banner =
+  "\n\
+  \       _           _             \n\
+  \      | |         | |            \n\
+  \    __| |_   _  __| |_   _ _   _\n\
+  \   / _  | | | |/ _  | | | ( \\ / )\n\
+  \  ( (_| | |_| ( (_| | |_| |) X ( \n\
+  \  \\____|\\__  |\\____|__/_/ \\_) \\_)\n\
+  \       (____/                   \n\n\
+  \   A mathematical inference engine\n"
+;;
+
 let () =
   let _ = p ("let pi = " ^ string_of_float pi) in
   let _ = p ("let ev = " ^ string_of_float e) in
@@ -17,6 +29,7 @@ let () =
 ;;
 
 let toggle_latex = ref false
+
 (*
    let rec input prompt cb =
   match LNoise.linenoise prompt with
@@ -59,6 +72,7 @@ let () =
   |> input " λ > "
 ;;
 *)
+let () = print_endline banner
 
 let rec repl () =
   print_string "> ";
