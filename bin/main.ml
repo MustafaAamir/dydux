@@ -20,6 +20,10 @@ open Dydux.Types
 open Stdlib
 open ANSITerminal
 
+let clear_screen () =
+  let command = if Sys.os_type = "Win32" then "cls" else "clear" in
+  ignore (Sys.command command)
+
 let p x =
   x
   |> Lexer.lex
@@ -62,13 +66,12 @@ let rec repl () =
     (match input with
      | "exit" | "quit" -> exit 0
      | "clear" | "cls" ->
-       let _ = Sys.command "clear" in
-       ()
+        clear_screen ()
      | ":toggle_latex" -> toggle_latex := not !toggle_latex
      | ":context" -> Hashtbl.iter (fun k v -> print_row k v) ctx
      | _ ->
-       Hashtbl.remove ctx "$";
        let result = p input in
+       Hashtbl.remove ctx "$";
        Hashtbl.add ctx "$" result;
        result |> printer |> print_endline);
     repl ()
