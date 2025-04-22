@@ -1,19 +1,24 @@
+let version = "          Dydux version 0.0.1\n"
+let description = "     A mathematical inference engine\n\n"
+
 let banner =
   "\n\
-  \       _           _             \n\
-  \      | |         | |            \n\
-  \    __| |_   _  __| |_   _ _   _\n\
-  \   / _  | | | |/ _  | | | ( \\ / )\n\
-  \  ( (_| | |_| ( (_| | |_| |) X ( \n\
-  \  \\____|\\__  |\\____|__/_/ \\_) \\_)\n\
-  \       (____/                   \n\n\
-  \   A mathematical inference engine\n"
+  \         _           _             \n\
+  \        | |         | |            \n\
+  \      __| |_   _  __| |_   _ _   _\n\
+  \     / _  | | | |/ _  | | | ( \\ / )\n\
+  \    ( (_| | |_| ( (_| | |_| |) X ( \n\
+  \    \\____|\\__  |\\____|__/_/ \\_) \\_)\n\
+  \          (____/                   \n\n"
+  ^ version
+  ^ description
 ;;
 
 open Dydux.Engine
 open Dydux.Expr
 open Dydux.Types
 open Stdlib
+open ANSITerminal
 
 let p x =
   x
@@ -31,72 +36,55 @@ let () =
 
 let toggle_latex = ref false
 
-(*
-   let rec input prompt cb =
-  match LNoise.linenoise prompt with
-  | None -> ()
-  | Some v ->
-    cb v;
-    input prompt cb
+let printer e =
+  match !toggle_latex with
+  | true -> P.latex e
+  | false -> P.print e
 ;;
 
-let () =
-  LNoise.history_load ~filename:"history.txt" |> ignore;
-  LNoise.history_set ~max_length:1000 |> ignore;
-  LNoise.set_hints_callback (fun line ->
-    if line <> "integrate" && line <> "diff "
-    then None
-    else Some (" <expression> wrt <variable>", LNoise.Yellow, true));
-  LNoise.set_completion_callback (fun line_so_far ln_completions ->
-    if line_so_far <> "" && line_so_far.[0] = 'i'
-    then "integrate" |> LNoise.add_completion ln_completions
-    else if line_so_far <> "" && line_so_far.[0] = 'd'
-    then "diff" |> LNoise.add_completion ln_completions);
-  (fun from_user ->
-    if from_user = "quit" || from_user = "exit"
-    then exit 0
-    else if from_user = "#toggle_latex"
-    then toggle_latex := not !toggle_latex
-    else if from_user = "clear"
-    then (
-      let _ = Sys.command "clear" in
-      ())
-    else (
-      LNoise.history_add from_user |> ignore;
-      LNoise.history_save ~filename:"history.txt" |> ignore;
-      let result = Expr.p from_user in
-      Printf.sprintf "   = %s" result |> print_endline;
-      if !toggle_latex = true
-      then (
-        let result = Expr.pl from_user in
-        Printf.sprintf "TeX = %s" result |> print_endline)))
-  |> input " λ > "
+let () = ANSITerminal.print_string [ Foreground White; Bold ] banner
+
+let print_cursor p =
+  ANSITerminal.printf [ Bold; Foreground Red ] "%s^" (String.make (p + 5) ' ')
 ;;
-*)
-let () = print_endline banner
+
+let print_row k v =
+  let k' = ANSITerminal.sprintf [ Foreground White; Bold ] "%s" k in
+  let v' = ANSITerminal.sprintf [ Foreground White ] "%s" (printer v) in
+  Printf.printf "%10s ➞ %s\n" k' v'
+;;
 
 let rec repl () =
-  print_string " λ > ";
+  ANSITerminal.print_string [ Foreground Yellow; Bold; Blink ] " λ > ";
   flush stdout;
   let input = read_line () in
   try
     (match input with
-     | "exit" | "quit" -> ()
+     | "exit" | "quit" -> exit 0
      | "clear" | "cls" ->
        let _ = Sys.command "clear" in
        ()
-     | "#toggle_latex" -> toggle_latex := not !toggle_latex
+     | ":toggle_latex" -> toggle_latex := not !toggle_latex
+     | ":context" -> Hashtbl.iter (fun k v -> print_row k v) ctx
      | _ ->
+       Hashtbl.remove ctx "$";
        let result = p input in
-       let () = Hashtbl.add ctx "$" result in
-       (match !toggle_latex with
-        | true -> result |> P.latex |> print_endline
-        | false -> result |> P.print |> print_endline));
+       Hashtbl.add ctx "$" result;
+       result |> printer |> print_endline);
     repl ()
   with
-  | Parser_error (c, p) -> Printf.printf "%s^\n"(String.make (p + 5) ' ') ;Printf.printf "  %s\n" c; repl ()
-  | Lexer_error (c, p) -> Printf.printf "%s^\n"(String.make (p + 5) ' ') ;Printf.printf "  %s\n" c; repl ()
-  | c -> Printf.printf "%s\n" (Printexc.to_string c);repl ()
+  | Invalid_argument _ -> repl ()
+  | Parser_error (c, p) ->
+    print_cursor p;
+    Printf.printf " Lexer: %s\n" c;
+    repl ()
+  | Lexer_error (c, p) ->
+    print_cursor p;
+    Printf.printf " Parser: %s\n" c;
+    repl ()
+  | Failure c ->
+    Printf.printf " Error: %s\n" c;
+    repl ()
 ;;
 
 let () = repl ()

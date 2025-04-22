@@ -1,5 +1,5 @@
 (executable
  (public_name dydux)
  (name main)
- (libraries dydux linenoise)
+ (libraries dydux ANSITerminal)
  (ocamlopt_flags :standard -O3))
