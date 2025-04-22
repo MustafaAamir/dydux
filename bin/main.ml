@@ -23,6 +23,7 @@ open ANSITerminal
 let clear_screen () =
   let command = if Sys.os_type = "Win32" then "cls" else "clear" in
   ignore (Sys.command command)
+;;
 
 let p x =
   x
@@ -65,8 +66,7 @@ let rec repl () =
   try
     (match input with
      | "exit" | "quit" -> exit 0
-     | "clear" | "cls" ->
-        clear_screen ()
+     | "clear" | "cls" -> clear_screen ()
      | ":toggle_latex" -> toggle_latex := not !toggle_latex
      | ":context" -> Hashtbl.iter (fun k v -> print_row k v) ctx
      | _ ->
