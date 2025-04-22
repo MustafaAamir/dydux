@@ -23,6 +23,21 @@ module Engine = struct
   open Types
   open Expr
 
+  type expression_type =
+    | Algebraic
+    | Exponential
+    | Trigonometric
+    | Logarithmic
+    | Other
+
+  let string_of_expression_type = function
+    | Algebraic -> "Algebraic"
+    | Exponential -> "Exponential"
+    | Trigonometric -> "Trigonometric"
+    | Logarithmic -> "Logarithmic"
+    | Other -> "Other"
+  ;;
+
   let rec subst x s expr =
     match expr with
     | Var v when x = v -> s
@@ -137,14 +152,14 @@ module Engine = struct
       in
       let classify expr wrt =
         if is_algebraic expr wrt
-        then `Algebraic
+        then Algebraic
         else if is_exponential expr wrt
-        then `Exponential
+        then Exponential
         else if is_trigonometric expr wrt
-        then `Trigonometric
+        then Trigonometric
         else if is_logarithmic expr wrt
-        then `Logarithmic
-        else `Other
+        then Logarithmic
+        else Other
       in
       let rec differentiate_until_zero expr =
         match simplify expr with
@@ -209,25 +224,15 @@ module Engine = struct
              Printf.printf
                "Expression 1 (%s) classified as: %s\n"
                (P.print e1)
-               (match class1 with
-                | `Algebraic -> "Algebraic"
-                | `Exponential -> "Exponential"
-                | `Trigonometric -> "Trigonometric"
-                | `Logarithmic -> "Logarithmic"
-                | `Other -> "Other");
+               (string_of_expression_type class1);
              Printf.printf
                "Expression 2 (%s) classified as: %s\n"
                (P.print e2)
-               (match class2 with
-                | `Algebraic -> "Algebraic"
-                | `Exponential -> "Exponential"
-                | `Trigonometric -> "Trigonometric"
-                | `Logarithmic -> "Logarithmic"
-                | `Other -> "Other");
-             if class1 = `Algebraic || class2 = `Algebraic
+               (string_of_expression_type class2);
+             if class1 = Algebraic || class2 = Algebraic
              then (
                Printf.printf "Case 4: Algebraic multiplication\n";
-               let u, dv = if class1 = `Algebraic then e1, e2 else e2, e1 in
+               let u, dv = if class1 = Algebraic then e1, e2 else e2, e1 in
                Printf.printf "u: %s, dv: %s\n" (P.print u) (P.print dv);
                let diffs = differentiate_until_zero u in
                let ints = integrate_n dv (List.length diffs) in
