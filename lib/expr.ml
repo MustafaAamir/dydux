@@ -91,7 +91,7 @@ module Lexer = struct
   open Types
 
   type token =
-    | LParen of int 
+    | LParen of int
     | RParen
     | LBracket
     | Let
@@ -230,7 +230,7 @@ module Lexer = struct
           let var, j = nat st st.pos in
           Nat (float_of_string var) :: advance st (!j - st.pos)
         | ' ' | '\t' | '\n' | '\r' -> advance st 1
-        | '(' -> LParen (st.pos) :: advance st 1
+        | '(' -> LParen st.pos :: advance st 1
         | ')' -> RParen :: advance st 1
         | ']' -> RBracket :: advance st 1
         | '[' -> LBracket :: advance st 1
@@ -254,10 +254,7 @@ module Lexer = struct
            | _ -> LVar var :: advance st (!j - st.pos))
         | _ ->
           let msg =
-            Printf.sprintf
-              "Unexpected character '%c' at position %d"
-              s.[i]
-              st.pos
+            Printf.sprintf "Unexpected character '%c' at position %d" s.[i] st.pos
           in
           raise (Lexer_error (msg, st.pos))
       in

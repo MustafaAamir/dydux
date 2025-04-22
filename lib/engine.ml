@@ -321,12 +321,9 @@ module Engine = struct
   ;;
 
   let post_process_integral flag (expr : expression) =
+    flag := false;
     match !flag with
-    | true ->
-      flag := false;
-      Add (expr, Var "c")
-    | false ->
-      flag := false;
-      expr
+    | true -> Add (expr, Var "c")
+    | false -> expr
   ;;
 end
