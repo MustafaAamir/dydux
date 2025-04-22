@@ -7,7 +7,7 @@
 (source
  (github MustafaAamir/dydux))
 
-(authors "Mustafa Aamir <mustafa.290101@gmail.com>", "Yusuf Sabuwalla <yusuff.0279@gmailcom>")
+(authors "Mustafa Aamir <mustafa.290101@gmail.com>" "Yusuf Sabuwalla <yusuff.0279@gmailcom>")
 
 (maintainers "Mustafa Aamir <mustafa.290101@gmail.com>")
 
