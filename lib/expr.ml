@@ -42,8 +42,8 @@ module P = struct
         "∫%s .wrt %s{%s to %s}"
         (print expression)
         x
-        (fst limits |> safe_int_to_string)
-        (snd limits |> safe_int_to_string)
+        (fst limits |> print)
+        (snd limits |> print)
     | Integral (expression, x, None) -> Printf.sprintf "∫%s .wrt %s" (print expression) x
     | Let (var, expr) -> Printf.sprintf "%s = %s" var (print expr)
   ;;
@@ -75,12 +75,7 @@ module P = struct
         x
         (latex expression)
     | Integral (expression, x, Some (a, b)) ->
-      Printf.sprintf
-        "\\int_{%s}^{%s} %s\\, d%s"
-        (safe_int_to_string a)
-        (safe_int_to_string b)
-        (latex expression)
-        x
+      Printf.sprintf "\\int_{%s}^{%s} %s\\, d%s" (print a) (print b) (latex expression) x
     | Integral (expression, x, None) ->
       Printf.sprintf "\\int %s\\, d%s" (latex expression) x
     | Let (var, expr) -> Printf.sprintf "%s = %s" var (latex expr)
@@ -323,8 +318,17 @@ module Parser = struct
       | LIntegral :: rest ->
         let expr, rest' = parse_atom rest in
         (match rest' with
-         | Wrt :: LVar x :: LCBracket :: Nat l1 :: Comma :: Nat l2 :: RCBracket :: rest''
-           -> Integral (expr, x, Some (l1, l2)), rest''
+         | Wrt :: LVar x :: LCBracket :: rest'' ->
+           let e1, rest''' = parse_add rest'' in
+           (match rest''' with
+            | Comma :: rest1 ->
+              let e2, rest1' = parse_add rest1 in
+              (match rest1' with
+               | RCBracket :: rest1'' -> Integral (expr, x, Some (e1, e2)), rest1''
+               | _ -> failwith "Expected '}' at the end of integration")
+            | _ ->
+              failwith
+                "Expected ',' after first expression in definite integration syntax")
          | Wrt :: LVar x :: rest'' -> Integral (expr, x, None), rest''
          | _ -> failwith "Invalid Integral syntax")
       | LVar x :: rest ->
@@ -333,8 +337,7 @@ module Parser = struct
          | None -> Var x, rest)
       | Let :: LVar x :: Assign :: rest ->
         let expr, rest' = parse_add rest in
-        Hashtbl.add ctx x expr;
-        expr, rest'
+        Let(x, expr), rest'
       | Nat n :: rest -> Const n, rest
       | E :: rest -> E, rest
       | LParen c :: rest ->
