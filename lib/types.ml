@@ -13,7 +13,7 @@ type expression =
   | E
   | Ln of expression
   | Let of string * expression
-  | Integral of expression * string * (float * float) option
+  | Integral of expression * string * (expression * expression) option
 
 exception Parser_error of string * int
 exception Lexer_error of string * int
