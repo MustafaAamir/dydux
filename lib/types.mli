@@ -15,4 +15,8 @@ type expression =
   | Let of string * expression
   | Integral of expression * string * (float * float) option
 
+exception Parser_error of string * int
+exception Lexer_error of string * int
+exception Engine_error of string
+
 type ctxt = (string, expression) Hashtbl.t
