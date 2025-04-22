@@ -99,11 +99,7 @@ module Engine = struct
       | Sin xpr -> Mul (derivative_engine xpr wrt, Cos xpr)
       | _ -> failwith "Not implemented yet"
     in
-    let rec integral_engine
-              (expression : expression)
-              wrt
-              (limits : (float * float) option)
-      =
+    let rec integral_engine expression wrt limits =
       let is_proportional expr1 expr2 =
         match Div (expr1 |> simplify, expr2 |> simplify) |> simplify with
         | Const _ -> true
@@ -262,8 +258,7 @@ module Engine = struct
       match limits with
       | Some (l1, l2) ->
         integral_flag := false;
-        Sub (subst wrt (Const l2) res |> simplify, subst wrt (Const l1) res |> simplify)
-        |> simplify
+        Sub (subst wrt l1 res |> simplify, subst wrt l2 res |> simplify) |> simplify
       | None -> res |> simplify
     in
     let simplify' = function
@@ -302,22 +297,33 @@ module Engine = struct
       | _ -> expr
     in
     match expr with
+    | Var v ->
+      (match Hashtbl.find_opt ctx v with
+       | Some e -> simplify' e
+       | None -> Var v)
     | Add (e1, e2) -> Add (simplify e1, simplify e2) |> simplify'
+    | Sub (e1, e2) -> Sub (simplify e1, simplify e2) |> simplify'
     | Mul (e1, e2) -> Mul (simplify e1, simplify e2) |> simplify'
     | Div (e1, e2) -> Div (simplify e1, simplify e2) |> simplify'
     | Exp (e1, e2) -> Exp (simplify e1, simplify e2) |> simplify'
+    | E -> E
     | Sin e -> Sin (simplify e) |> simplify'
     | Cos e -> Cos (simplify e) |> simplify'
     | Tan e -> Tan (simplify e) |> simplify'
     | Ln e -> Ln (simplify e) |> simplify'
     | Diff (expression, x) -> derivative_engine (simplify expression) x |> simplify
+    | Const c -> Const c
     | Integral (expression, x, Some (l1, l2)) ->
       integral_flag := true;
-      integral_engine (simplify expression) x (Some (l1, l2)) |> simplify
+      integral_engine (simplify expression) x (Some (simplify l1, simplify l2))
+      |> simplify
     | Integral (expression, x, None) ->
       integral_flag := true;
       integral_engine (simplify expression) x None |> simplify
-    | _ -> simplify' expr
+    | Let (v, e) ->
+      let e' = simplify e in
+      Hashtbl.add ctx v e';
+      e'
   ;;
 
   let post_process_integral flag (expr : expression) =
