@@ -1,15 +1,3 @@
-open Dydux.Engine
-open Dydux.Expr
-open Stdlib
-
-let p x =
-  x
-  |> Lexer.lex
-  |> Parser.parse
-  |> Engine.simplify
-  |> Engine.post_process_integral integral_flag
-;;
-
 let banner =
   "\n\
   \       _           _             \n\
@@ -20,6 +8,19 @@ let banner =
   \  \\____|\\__  |\\____|__/_/ \\_) \\_)\n\
   \       (____/                   \n\n\
   \   A mathematical inference engine\n"
+;;
+
+open Dydux.Engine
+open Dydux.Expr
+open Dydux.Types
+open Stdlib
+
+let p x =
+  x
+  |> Lexer.lex
+  |> Parser.parse
+  |> Engine.simplify
+  |> Engine.post_process_integral integral_flag
 ;;
 
 let () =
@@ -75,34 +76,27 @@ let () =
 let () = print_endline banner
 
 let rec repl () =
-  print_string "> ";
+  print_string " λ > ";
   flush stdout;
   let input = read_line () in
-  if input = "exit"
-  then ()
-  else if input = "#toggle_latex"
-  then (
-    toggle_latex := not !toggle_latex;
-    repl ())
-  else if input = "clear"
-  then (
-    let _ = Sys.command "clear" in
-    repl ())
-  else (
-    try
-      let result = p input in
-      if !toggle_latex = true
-      then (
-        result |> P.latex |> print_endline;
-        repl ())
-      else (
-        let result = p input in
-        result |> P.print |> print_endline;
-        repl ())
-    with
-    | _ ->
-      print_endline "Error";
-      repl ())
+  try
+    (match input with
+     | "exit" | "quit" -> ()
+     | "clear" | "cls" ->
+       let _ = Sys.command "clear" in
+       ()
+     | "#toggle_latex" -> toggle_latex := not !toggle_latex
+     | _ ->
+       let result = p input in
+       let () = Hashtbl.add ctx "$" result in
+       (match !toggle_latex with
+        | true -> result |> P.latex |> print_endline
+        | false -> result |> P.print |> print_endline));
+    repl ()
+  with
+  | Parser_error (c, p) -> Printf.printf "%s^\n"(String.make (p + 5) ' ') ;Printf.printf "  %s\n" c; repl ()
+  | Lexer_error (c, p) -> Printf.printf "%s^\n"(String.make (p + 5) ' ') ;Printf.printf "  %s\n" c; repl ()
+  | c -> Printf.printf "%s\n" (Printexc.to_string c);repl ()
 ;;
 
 let () = repl ()
