@@ -88,8 +88,10 @@ module P = struct
 end
 
 module Lexer = struct
+  open Types
+
   type token =
-    | LParen
+    | LParen of int 
     | RParen
     | LBracket
     | Let
@@ -126,7 +128,7 @@ module Lexer = struct
 
   let is_alpha c =
     match c with
-    | 'A' .. 'Z' | 'a' .. 'z' -> true
+    | 'A' .. 'Z' | 'a' .. 'z' | '$' -> true
     | _ -> false
   ;;
 
@@ -193,7 +195,6 @@ module Lexer = struct
        ; '!'
        ; '@'
        ; '#'
-       ; '$'
        ; '%'
        ; '^'
        ; '&'
@@ -229,7 +230,7 @@ module Lexer = struct
           let var, j = nat st st.pos in
           Nat (float_of_string var) :: advance st (!j - st.pos)
         | ' ' | '\t' | '\n' | '\r' -> advance st 1
-        | '(' -> LParen :: advance st 1
+        | '(' -> LParen (st.pos) :: advance st 1
         | ')' -> RParen :: advance st 1
         | ']' -> RBracket :: advance st 1
         | '[' -> LBracket :: advance st 1
@@ -238,7 +239,7 @@ module Lexer = struct
         | ',' -> Comma :: advance st 1
         | '=' -> Assign :: advance st 1
         | x when Array.mem x symbol_arr -> Symbol x :: advance st 1
-        | 'A' .. 'Z' | 'a' .. 'z' | '\'' ->
+        | 'A' .. 'Z' | 'a' .. 'z' | '\'' | '$' ->
           let var, j = id st st.pos in
           (match var with
            | "sin" -> Sin :: advance st (!j - st.pos)
@@ -251,7 +252,14 @@ module Lexer = struct
            | "e" -> E :: advance st (!j - st.pos)
            | "ln" -> Ln :: advance st (!j - st.pos)
            | _ -> LVar var :: advance st (!j - st.pos))
-        | _ -> "Unexpected character: " ^ String.make 1 s.[i] |> failwith
+        | _ ->
+          let msg =
+            Printf.sprintf
+              "Unexpected character '%c' at position %d"
+              s.[i]
+              st.pos
+          in
+          raise (Lexer_error (msg, st.pos))
       in
       aux 0
     | _ -> [ EOF ]
@@ -332,11 +340,11 @@ module Parser = struct
         expr, rest'
       | Nat n :: rest -> Const n, rest
       | E :: rest -> E, rest
-      | LParen :: rest ->
+      | LParen c :: rest ->
         let expr, rest' = parse_add rest in
         (match rest' with
          | RParen :: rest'' -> expr, rest''
-         | _ -> failwith "Missing closing parenthesis")
+         | _ -> raise (Parser_error ("Missing closing parenthesis ')' for this pair", c)))
       | _ -> failwith "Invalid token"
     in
     let expr, rest = parse_add tokens in
