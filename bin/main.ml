@@ -44,6 +44,7 @@ let toggle_latex = ref false
 let toggle_debug = ref false
 
 let printer e =
+        ANSITerminal.printf [Foreground Red; Bold] "━━━━━━Ans━━━━━━\n"; 
   match !toggle_latex with
   | true -> P.latex e
   | false -> P.print e
@@ -52,8 +53,8 @@ let printer e =
 let debug e =
   match !toggle_debug with
   | true ->
-    ANSITerminal.printf [Foreground Red; Bold] " Ast: ";
-    P.dump_ast e
+    ANSITerminal.printf [Foreground Red; Bold] "━━━━━━Ast━━━━━━\n";
+    P.dump_ast e; print_endline ""
   | false -> ()
 ;;
 
