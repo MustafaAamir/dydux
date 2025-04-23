@@ -22,6 +22,7 @@ let rec pow a = function
 module Engine = struct
   open Types
   open Expr
+  open Printer
 
   type expression_type =
     | Algebraic
