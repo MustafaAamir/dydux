@@ -15,6 +15,7 @@ let banner =
 ;;
 
 open Dydux.Engine
+open Dydux.Printer
 open Dydux.Expr
 open Dydux.Types
 open Stdlib
@@ -40,11 +41,20 @@ let () =
 ;;
 
 let toggle_latex = ref false
+let toggle_debug = ref false
 
 let printer e =
   match !toggle_latex with
   | true -> P.latex e
   | false -> P.print e
+;;
+
+let debug e =
+  match !toggle_debug with
+  | true ->
+    ANSITerminal.printf [Foreground Red; Bold] " Ast: ";
+    P.dump_ast e
+  | false -> ()
 ;;
 
 let () = ANSITerminal.print_string [ Foreground White; Bold ] banner
@@ -67,13 +77,15 @@ let rec repl () =
     (match input with
      | "exit" | "quit" -> exit 0
      | "clear" | "cls" -> clear_screen ()
-     | ":toggle_latex" -> toggle_latex := not !toggle_latex
+     | ":latex" -> toggle_latex := not !toggle_latex
+     | ":debug" -> toggle_debug := not !toggle_debug
      | ":context" -> Hashtbl.iter (fun k v -> print_row k v) ctx
      | _ ->
        let result = p input in
        Hashtbl.remove ctx "$";
        Hashtbl.add ctx "$" result;
-       result |> printer |> print_endline);
+       result |> printer |> print_endline;
+       debug result);
     repl ()
   with
   | Invalid_argument _ -> repl ()
