@@ -12,6 +12,9 @@ Under development. A mathematical inference engine in OCaml
 8. I don't rmr if i added evaluating for trig functions. that's not the goal. it's an algebraic engine, not a scientific calculator.
 
 
+```shell
+opam install ppx_deriving
+```
 in the root directory:
 ```shell
 $ dune exec dydux
