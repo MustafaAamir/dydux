@@ -151,6 +151,7 @@ module Lexer = struct
         | '{' -> LCBracket :: advance st 1
         | ',' -> Comma :: advance st 1
         | '=' -> Assign :: advance st 1
+        | x when x = ';' -> [ EOF ]
         | x when Array.mem x symbol_arr -> Symbol x :: advance st 1
         | 'A' .. 'Z' | 'a' .. 'z' | '\'' | '$' ->
           let var, j = id st st.pos in
@@ -255,7 +256,7 @@ module Parser = struct
          | None -> Var x, rest)
       | Let :: LVar x :: Assign :: rest ->
         let expr, rest' = parse_add rest in
-        Let(x, expr), rest'
+        Let (x, expr), rest'
       | Nat n :: rest -> Const n, rest
       | E :: rest -> E, rest
       | LParen c :: rest ->
