@@ -13,7 +13,7 @@ Under development. A mathematical inference engine in OCaml
 
 
 ```shell
-opam install ppx_deriving
+opam install ppx_deriving core_bench
 ```
 in the root directory:
 ```shell
