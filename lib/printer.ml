@@ -45,6 +45,7 @@ module P = struct
     | Integral (expression, x, None) -> Printf.sprintf "∫%s .wrt %s" (print expression) x
     | Let (var, expr) -> Printf.sprintf "%s = %s" var (print expr)
   ;;
+
   (*abstract this away*)
   let rec latex_paren parent_prec expr =
     let self_prec = prec expr in
@@ -77,35 +78,4 @@ module P = struct
       Printf.sprintf "\\int %s\\, d%s" (latex expression) x
     | Let (var, expr) -> Printf.sprintf "%s = %s" var (latex expr)
   ;;
-
-  let rec pp_expression fmt = function
-  | Var s -> Format.fprintf fmt "Var(%S)" s
-  | Const f -> Format.fprintf fmt "Const(%f)" f
-  | Add (e1, e2) -> 
-      Format.fprintf fmt "Add(@[<hov>%a,@ %a@])" pp_expression e1 pp_expression e2
-  | Sub (e1, e2) -> 
-      Format.fprintf fmt "Sub(@[<hov>%a,@ %a@])" pp_expression e1 pp_expression e2
-  | Mul (e1, e2) -> 
-      Format.fprintf fmt "Mul(@[<hov>%a,@ %a@])" pp_expression e1 pp_expression e2
-  | Div (e1, e2) -> 
-      Format.fprintf fmt "Div(@[<hov>%a,@ %a@])" pp_expression e1 pp_expression e2
-  | Exp (e1, e2) -> 
-      Format.fprintf fmt "Exp(@[<hov>%a,@ %a@])" pp_expression e1 pp_expression e2
-  | Sin e -> Format.fprintf fmt "Sin(@[<hov>%a@])" pp_expression e
-  | Cos e -> Format.fprintf fmt "Cos(@[<hov>%a@])" pp_expression e
-  | Tan e -> Format.fprintf fmt "Tan(@[<hov>%a@])" pp_expression e
-  | Diff (e, s) -> Format.fprintf fmt "Diff(@[<hov>%a,@ %S@])" pp_expression e s
-  | E -> Format.fprintf fmt "E"
-  | Ln e -> Format.fprintf fmt "Ln(@[<hov>%a@])" pp_expression e
-  | Let (s, e) -> Format.fprintf fmt "Let(@[<hov>%S,@ %a@])" s pp_expression e
-  | Integral (e, s, None) -> 
-      Format.fprintf fmt "Integral(@[<hov>%a,@ %S,@ None@])" pp_expression e s
-  | Integral (e, s, Some (e1, e2)) -> 
-      Format.fprintf fmt "Integral(@[<hov>%a,@ %S,@ Some(@[<hov>%a,@ %a@])@])" 
-        pp_expression e s pp_expression e1 pp_expression e2
-
-let dump_ast expression =
-  Format.printf "@[<v>%a@]@." pp_expression expression
 end
-
-

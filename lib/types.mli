@@ -14,6 +14,7 @@ type expression =
   | Ln of expression
   | Let of string * expression
   | Integral of expression * string * (expression * expression) option
+[@@deriving show { with_path = false }]
 
 exception Parser_error of string * int
 exception Lexer_error of string * int
