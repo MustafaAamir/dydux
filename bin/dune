@@ -2,4 +2,6 @@
  (public_name dydux)
  (name main)
  (libraries dydux ANSITerminal)
+ (preprocess
+  (pps ppx_deriving.show))
  (ocamlopt_flags :standard -O3))

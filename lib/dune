@@ -2,4 +2,6 @@
  (name dydux)
  (public_name dydux)
  (modules expr engine types printer)
+ (preprocess
+  (pps ppx_deriving.show))
  (libraries fmt))
