@@ -34,6 +34,25 @@ let p x =
   |> Engine.post_process_integral integral_flag
 ;;
 
+let read_lines_ filename =
+  let channel = open_in filename in
+  let rec read_lines acc =
+    try
+      let line = input_line channel in
+      if line = "\n" then read_lines acc else read_lines (line :: acc)
+    with
+    | End_of_file ->
+      close_in channel;
+      List.rev (List.map (fun s -> String.trim s) acc)
+  in
+  read_lines []
+;;
+
+(* Example usage:
+   let lines = read_lines_ "example.txt" in
+   List.iter (fun s -> print_endline s) lines
+*)
+
 let () =
   let _ = p ("let pi = " ^ string_of_float pi) in
   let _ = p ("let ev = " ^ string_of_float e) in
@@ -44,7 +63,7 @@ let toggle_latex = ref false
 let toggle_debug = ref false
 
 let printer e =
-        ANSITerminal.printf [Foreground Red; Bold] "━━━━━━Ans━━━━━━\n"; 
+  ANSITerminal.printf [ Foreground Red; Bold ] "━━━━━━Ans━━━━━━\n";
   match !toggle_latex with
   | true -> P.latex e
   | false -> P.print e
@@ -53,8 +72,8 @@ let printer e =
 let debug e =
   match !toggle_debug with
   | true ->
-    ANSITerminal.printf [Foreground Red; Bold] "━━━━━━Ast━━━━━━\n";
-    P.dump_ast e; print_endline ""
+    ANSITerminal.printf [ Foreground Red; Bold ] "━━━━━━Ast━━━━━━\n";
+    show_expression e |> print_endline
   | false -> ()
 ;;
 
@@ -103,4 +122,10 @@ let rec repl () =
     repl ()
 ;;
 
-let () = repl ()
+let () =
+  if Array.length Sys.argv = 1
+  then repl ()
+  else (
+    let lines = read_lines_ Sys.argv.(1) in
+    List.iter (fun s -> print_endline (P.print (p s))) lines)
+;;
