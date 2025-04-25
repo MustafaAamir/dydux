@@ -1,9 +1,13 @@
+let epsilon = 1e-10
+let approx_eq v1 v2 = Float.abs (v1 -. v2) < epsilon
+
 module P = struct
   open Types
+  open Float
 
   let safe_int_to_string x =
     let diff = abs_float (x -. float_of_int (int_of_float x)) in
-    if diff < 1e-9 then string_of_int (int_of_float x) else string_of_float x
+    if diff < epsilon then string_of_int (int_of_float x) else string_of_float x
   ;;
 
   let rec prec = function
@@ -20,6 +24,7 @@ module P = struct
 
   and print = function
     | E -> "e"
+    | Const x when approx_eq x Float.pi -> "π"
     | Const x -> safe_int_to_string x
     | Var x -> x
     | Add (e1, e2) -> Printf.sprintf "%s + %s" (paren 1 e1) (paren 1 e2)
@@ -54,6 +59,7 @@ module P = struct
 
   and latex = function
     | E -> "e"
+    | Const x when approx_eq x Float.pi -> "\pi"
     | Const x -> safe_int_to_string x
     | Var x -> x
     | Add (e1, e2) -> Printf.sprintf "%s + %s" (latex_paren 1 e1) (latex_paren 1 e2)
