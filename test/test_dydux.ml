@@ -2,7 +2,7 @@ open Core_bench
 open Dydux.Engine
 open Dydux.Expr
 open Dydux.Printer
-(*open Dydux.Types*)
+open Dydux.Types [@@warning "-33"]
 
 let _p x =
   x
@@ -13,7 +13,7 @@ let _p x =
 ;;
 
 module EngineTest = struct
-  let () =
+  let bench =
     Command_unix.run
       (Bench.make_command
          [ Bench.Test.create ~name:"integrate (x) wrt x" (fun () ->
@@ -23,5 +23,3 @@ module EngineTest = struct
          ])
   ;;
 end
-
-let () = !integral_flag |> string_of_bool |> print_endline

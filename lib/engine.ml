@@ -5,8 +5,6 @@
     1. add support for ln
     2. Integration doesn't work.interate sin(x) *cos(x) wrt x
 *)
-let pi = 3.1415926535897932384626433
-let e = 2.718281828459045235360287471352
 let one = Types.Const 1.
 let zero = Types.Const 0.
 let integral_flag = ref false

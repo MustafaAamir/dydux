@@ -1,3 +1,8 @@
+(env
+ (dev
+  (flags
+   (:standard -warn-error -32))))
+
 (test
  (name test_dydux)
  (libraries ounit2 dydux core_bench core unix))
