@@ -34,9 +34,25 @@ no need for this anymore, just run the repl in bin
 
 ```
 
+## breakdown
 
-# TODO
 
-I'll create a repl to avoid utop
+
+
+### Todo 
+
+1. parser grammar that automatically handles precedence
+
+```bnf
+AddSub   ::= <MulDiv> ("+" | "-") <AddSub> | <MulDiv>;
+MulDiv   ::= <Brackets> ("*" | "/") <MulDiv> | <Brackets>;
+Brackets ::= "(" <AddSub> ")" | <Decimal>;
+Decimal  ::= <Integer> "." <Integer> | <Integer>;
+Integer  ::= <Digit> <Integer> | <Digit>;
+Digit    ::= "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9";
+```
+2. using s-expressions
+
+
 
 
