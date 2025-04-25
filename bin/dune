@@ -1,3 +1,8 @@
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))
+
 (executable
  (public_name dydux)
  (name main)

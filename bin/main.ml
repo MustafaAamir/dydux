@@ -1,5 +1,6 @@
 let version = "          Dydux version 0.0.1\n"
 let description = "     A mathematical inference engine\n\n"
+let e = 2.718281828459045235360287471352
 
 let banner =
   "\n\
@@ -54,7 +55,7 @@ let read_lines_ filename =
 *)
 
 let () =
-  let _ = p ("let pi = " ^ string_of_float pi) in
+  let _ = p ("let pi = " ^ string_of_float Float.pi) in
   let _ = p ("let ev = " ^ string_of_float e) in
   ()
 ;;
