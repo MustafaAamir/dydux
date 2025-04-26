@@ -59,7 +59,7 @@ module P = struct
 
   and latex = function
     | E -> "e"
-    | Const x when approx_eq x Float.pi -> "\pi"
+    | Const x when approx_eq x Float.pi -> "\\pi"
     | Const x -> safe_int_to_string x
     | Var x -> x
     | Add (e1, e2) -> Printf.sprintf "%s + %s" (latex_paren 1 e1) (latex_paren 1 e2)

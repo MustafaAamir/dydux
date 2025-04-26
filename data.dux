@@ -1,5 +1,7 @@
-sin(x)
-cos(x)
-1 + 1+ 1
-integrate (x) wrt x
-integrate (y) wrt y
+let wave = sin(2*pi + x)
+let wave2 = cos(2*pi + 2 * x)
+let composite = wave * wave2
+let dcomposite = diff (composite) wrt x
+let ddcomposite = diff (dcomposite) wrt x
+let error = integrate (g + 2 * pi * (g^2)) wrt g{1.5, 2.5}
+ddcomposite + error

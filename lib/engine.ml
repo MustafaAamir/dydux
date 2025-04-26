@@ -1,21 +1,8 @@
-(*
-   TODO: 
-    0.5. integration ffs
-    0.75. integrate e
-    1. add support for ln
-    2. Integration doesn't work.interate sin(x) *cos(x) wrt x
-*)
+(* traverse expression tree *)
+
 let one = Types.Const 1.
 let zero = Types.Const 0.
 let integral_flag = ref false
-
-let rec pow a = function
-  | 0 -> 1
-  | 1 -> a
-  | n ->
-    let b = pow a (n / 2) in
-    b * b * if n mod 2 = 0 then 1 else a
-;;
 
 module Engine = struct
   open Types
@@ -28,14 +15,7 @@ module Engine = struct
     | Trigonometric
     | Logarithmic
     | Other
-
-  let string_of_expression_type = function
-    | Algebraic -> "Algebraic"
-    | Exponential -> "Exponential"
-    | Trigonometric -> "Trigonometric"
-    | Logarithmic -> "Logarithmic"
-    | Other -> "Other"
-  ;;
+  [@@deriving show { with_path = false }]
 
   let rec subst x s expr =
     match expr with
@@ -43,6 +23,7 @@ module Engine = struct
     | Mul (e1, e2) -> Mul (subst x s e1, subst x s e2)
     | Div (e1, e2) -> Div (subst x s e1, subst x s e2)
     | Add (e1, e2) -> Add (subst x s e1, subst x s e2)
+    | Sub (e1, e2) -> Sub (subst x s e1, subst x s e2)
     | Exp (e1, e2) -> Exp (subst x s e1, subst x s e2)
     | Sin e1 -> Sin (subst x s e1)
     | Ln e1 -> Ln (subst x s e1)
@@ -54,10 +35,17 @@ module Engine = struct
 
   let rec simplify expr =
     let rec derivative_engine expression wrt =
+      (*
+         (Diff (
+   (Mul ((Sin (Add ((Mul ((Const 2.), (Const 3.14159265359))), (Var "x")))),
+      (Cos (Add ((Mul ((Const 2.), (Const 3.14159265359))), (Var "x")))))),
+   "x"))
+      *)
       match expression with
       | Exp (Const c, Var _) -> Mul (expression, Ln (Const c))
       | Mul (E, Var _) | Mul (Var _, E) -> E
-      | Mul (Const _, E) | Mul (E, Const _) | Exp (E, Var _) -> expression
+      | Exp (E, Var _) -> expression
+      | Mul (Const _, E) | Mul (E, Const _) -> Const 0.
       | Exp (E, e1) ->
         let e1' = simplify (derivative_engine e1 wrt) in
         (match e1' with
@@ -94,87 +82,14 @@ module Engine = struct
           ( Mul (Const c, Exp (e1, Const (c -. 1.))) |> simplify
           , derivative_engine e1 wrt |> simplify )
         |> simplify
-      | Cos (Var x) -> Mul (Const (-1.), Sin (Var x))
-      | Sin xpr -> Mul (derivative_engine xpr wrt, Cos xpr)
+      | Cos (Var x) -> Mul (Const (-1.), Sin (Var x)) |> simplify
+      | Sin xpr -> Mul (derivative_engine xpr wrt |> simplify, Cos xpr) |> simplify
+      | Cos xpr ->
+        Mul (derivative_engine xpr wrt, Mul (Const (-1.), Sin xpr))
+        |> simplify
       | _ -> failwith "Not implemented yet"
     in
     let rec integral_engine expression wrt limits =
-      let is_proportional expr1 expr2 =
-        match Div (expr1 |> simplify, expr2 |> simplify) |> simplify with
-        | Const _ -> true
-        | _ -> false
-      in
-      let rec contains_var expr var =
-        match expr with
-        | Var v -> v = var
-        | Const _ -> false
-        | Add (a, b) | Sub (a, b) | Mul (a, b) | Div (a, b) ->
-          contains_var a var || contains_var b var
-        | Exp (a, b) -> contains_var a var || contains_var b var
-        | Sin a | Cos a | Tan a | Ln a -> contains_var a var
-        | E -> false
-        | Diff (e, x) -> contains_var e var || x = var
-        | Let (x, e) -> x = var || contains_var e var
-        | Integral (e, x, _) -> contains_var e var || x = var
-      in
-      let is_algebraic expr wrt =
-        match simplify expr with
-        | Exp (Var v, Const n) when v = wrt && n > 0. -> true
-        | Var v when v = wrt -> true (* x = x^1 *)
-        | _ -> false
-      in
-      let is_trigonometric expr wrt =
-        match simplify expr with
-        | Sin e | Cos e | Tan e -> contains_var e wrt
-        | _ -> false
-      in
-      let is_exponential expr wrt =
-        Printf.printf "Checking if exponential: %s\n" (P.print expr);
-        match expr with
-        | Exp (E, e) ->
-          Printf.printf "Found Exp(E, %s)\n" (P.print e);
-          let contains = contains_var e wrt in
-          Printf.printf "Contains var %s: %b\n" wrt contains;
-          contains
-        | _ ->
-          Printf.printf "No match for exponential\n";
-          false
-      in
-      let is_logarithmic expr wrt =
-        match simplify expr with
-        | Ln e -> contains_var e wrt
-        | _ -> false
-      in
-      let classify expr wrt =
-        if is_algebraic expr wrt
-        then Algebraic
-        else if is_exponential expr wrt
-        then Exponential
-        else if is_trigonometric expr wrt
-        then Trigonometric
-        else if is_logarithmic expr wrt
-        then Logarithmic
-        else Other
-      in
-      let rec differentiate_until_zero expr =
-        match simplify expr with
-        | Const 0. -> []
-        | e -> e :: differentiate_until_zero (derivative_engine e wrt)
-      in
-      let rec integrate_n expr n =
-        if n <= 0
-        then []
-        else
-          integral_engine expr wrt limits
-          :: integrate_n (integral_engine expr wrt limits) (n - 1)
-      in
-      let rec di_method diffs ints sign =
-        match diffs, ints with
-        | d :: ds, i :: is ->
-          let term = if sign then Mul (d, i) else Mul (Const (-1.), Mul (d, i)) in
-          term :: di_method ds is (not sign)
-        | _, _ -> []
-      in
       let res =
         match simplify expression with
         | Var x when x = wrt ->
@@ -209,49 +124,6 @@ module Engine = struct
           Sub
             ( integral_engine (simplify e1) wrt limits
             , integral_engine (simplify e2) wrt limits )
-        | Mul (e1, e2) ->
-          Printf.printf " multiplicatio\n";
-          (match e1, e2 with
-           | _ ->
-             Printf.printf "Case 3: General multiplication\n";
-             let class1 = classify e1 wrt in
-             let class2 = classify e2 wrt in
-             Printf.printf
-               "Expression 1 (%s) classified as: %s\n"
-               (P.print e1)
-               (string_of_expression_type class1);
-             Printf.printf
-               "Expression 2 (%s) classified as: %s\n"
-               (P.print e2)
-               (string_of_expression_type class2);
-             if class1 = Algebraic || class2 = Algebraic
-             then (
-               Printf.printf "Case 4: Algebraic multiplication\n";
-               let u, dv = if class1 = Algebraic then e1, e2 else e2, e1 in
-               Printf.printf "u: %s, dv: %s\n" (P.print u) (P.print dv);
-               let diffs = differentiate_until_zero u in
-               let ints = integrate_n dv (List.length diffs) in
-               let terms = di_method diffs ints true in
-               List.fold_left (fun acc term -> Add (acc, term)) (Const 0.) terms)
-             else expression |> simplify)
-        | Div (num, Exp (base, Const n)) ->
-          let base_deriv = derivative_engine base wrt |> simplify in
-          if is_proportional num base_deriv
-          then (
-            let k = Div (num, base_deriv) |> simplify in
-            let result =
-              Div
-                ( Mul
-                    ( k
-                    , Exp
-                        ( base
-                        , Mul (Const (-1.), Sub (Const n, Const 1.) |> simplify)
-                          |> simplify ) )
-                , Mul (Const (-1.), Sub (Const n, Const 1.) |> simplify) |> simplify )
-              |> simplify
-            in
-            result)
-          else expression |> simplify
         | _ -> expression |> simplify
       in
       match limits with
@@ -300,7 +172,7 @@ module Engine = struct
       (match Hashtbl.find_opt ctx v with
        | Some e -> simplify' e
        | None -> Var v)
-    | Add (e1, e2) -> Add (simplify e1, simplify e2) |> simplify'
+    | Add (e1, e2) -> Add (simplify e1, simplify e2) |> simplify' (* base case*)
     | Sub (e1, e2) -> Sub (simplify e1, simplify e2) |> simplify'
     | Mul (e1, e2) -> Mul (simplify e1, simplify e2) |> simplify'
     | Div (e1, e2) -> Div (simplify e1, simplify e2) |> simplify'

@@ -102,6 +102,7 @@ let rec repl () =
      | ":debug" -> toggle_debug := not !toggle_debug
      | ":context" -> Hashtbl.iter (fun k v -> print_row k v) ctx
      | _ ->
+       debug (input |> Lexer.lex |> Parser.parse);
        let result = p input in
        Hashtbl.remove ctx "$";
        Hashtbl.add ctx "$" result;

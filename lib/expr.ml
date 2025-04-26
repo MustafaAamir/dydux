@@ -4,15 +4,8 @@ module Lexer = struct
   open Types
 
   type token =
-    | LParen of int
-    | RParen
-    | LBracket
     | Let
-    | RBracket
-    | LCBracket
-    | RCBracket
-    | Assign
-    | Symbol of char
+    | Symbol of char * int
     | LVar of string
     | Sin
     | Cos
@@ -22,9 +15,9 @@ module Lexer = struct
     | LDiff
     | LIntegral
     | Wrt
-    | Comma
     | Nat of float
     | EOF
+  [@@deriving show { with_path = false }]
 
   type state =
     { input : string
@@ -41,14 +34,14 @@ module Lexer = struct
 
   let is_alpha c =
     match c with
-    | 'A' .. 'Z' | 'a' .. 'z' | '$' -> true
+    | 'A' .. 'Z' | 'a' .. 'z' | '$' | '\'' -> true
     | _ -> false
   ;;
 
   let is_alphanum c =
     match c with
     | '0' .. '9' -> true
-    | _ when is_alpha c -> true
+    | c when is_alpha c -> true
     | _ -> false
   ;;
 
@@ -103,14 +96,7 @@ module Lexer = struct
   let lex input =
     let st = init input in
     let symbol_arr =
-      [| '~'
-       ; '`'
-       ; '!'
-       ; '@'
-       ; '#'
-       ; '%'
-       ; '^'
-       ; '&'
+      [| '^'
        ; '*'
        ; '-'
        ; '+'
@@ -122,8 +108,27 @@ module Lexer = struct
        ; '>'
        ; '.'
        ; '?'
-       ; ';'
+       ; '('
+       ; ')'
+       ; ']'
+       ; '['
+       ; '}'
+       ; '{'
+       ; ','
+       ; '='
       |]
+    in
+    let keywords =
+      [ "sin", Sin
+      ; "cos", Cos
+      ; "tan", Tan
+      ; "diff", LDiff
+      ; "wrt", Wrt
+      ; "let", Let
+      ; "integrate", LIntegral
+      ; "e", E
+      ; "ln", Ln
+      ]
     in
     match input with
     | "" -> [ EOF ]
@@ -139,38 +144,20 @@ module Lexer = struct
         in
         match st.input.[i] with
         (* needs to match with '-', '+' not that important *)
+        | ' ' | '\t' | '\n' | '\r' -> advance st 1
         | '0' .. '9' ->
           let var, j = nat st st.pos in
           Nat (float_of_string var) :: advance st (!j - st.pos)
-        | ' ' | '\t' | '\n' | '\r' -> advance st 1
-        | '(' -> LParen st.pos :: advance st 1
-        | ')' -> RParen :: advance st 1
-        | ']' -> RBracket :: advance st 1
-        | '[' -> LBracket :: advance st 1
-        | '}' -> RCBracket :: advance st 1
-        | '{' -> LCBracket :: advance st 1
-        | ',' -> Comma :: advance st 1
-        | '=' -> Assign :: advance st 1
-        | x when x = ';' -> [ EOF ]
-        | x when Array.mem x symbol_arr -> Symbol x :: advance st 1
+        | x when Array.mem x symbol_arr -> Symbol (x, st.pos) :: advance st 1
         | 'A' .. 'Z' | 'a' .. 'z' | '\'' | '$' ->
           let var, j = id st st.pos in
-          (match var with
-           | "sin" -> Sin :: advance st (!j - st.pos)
-           | "cos" -> Cos :: advance st (!j - st.pos)
-           | "tan" -> Tan :: advance st (!j - st.pos)
-           | "diff" -> LDiff :: advance st (!j - st.pos)
-           | "wrt" -> Wrt :: advance st (!j - st.pos)
-           | "let" -> Let :: advance st (!j - st.pos)
-           | "integrate" -> LIntegral :: advance st (!j - st.pos)
-           | "e" -> E :: advance st (!j - st.pos)
-           | "ln" -> Ln :: advance st (!j - st.pos)
-           | _ -> LVar var :: advance st (!j - st.pos))
+          (match List.assoc_opt var keywords with
+           | Some v -> v :: advance st (!j - st.pos)
+           | None -> LVar var :: advance st (!j - st.pos))
         | _ ->
-          let msg =
-            Printf.sprintf "Unexpected character '%c' at position %d" s.[i] st.pos
-          in
-          raise (Lexer_error (msg, st.pos))
+          raise
+            (Lexer_error
+               (Printf.sprintf "Unexpected character " ^ String.make 1 s.[i], st.pos))
       in
       aux 0
     | _ -> [ EOF ]
@@ -187,10 +174,10 @@ module Parser = struct
       | tokens ->
         let left, rest = parse_mul tokens in
         (match rest with
-         | Symbol '+' :: rest' ->
+         | Symbol ('+', _) :: rest' ->
            let right, rest'' = parse_add rest' in
            Add (left, right), rest''
-         | Symbol '-' :: rest' ->
+         | Symbol ('-', _) :: rest' ->
            let right, rest'' = parse_add rest' in
            Sub (left, right), rest''
          | _ -> left, rest)
@@ -199,22 +186,28 @@ module Parser = struct
       | tokens ->
         let left, rest = parse_exp tokens in
         (match rest with
-         | Symbol '*' :: rest' ->
+         | Symbol ('*', _) :: rest' ->
            let right, rest'' = parse_mul rest' in
            Mul (left, right), rest''
-         | Symbol '/' :: rest' ->
+         | Symbol ('/', _) :: rest' ->
            let right, rest'' = parse_mul rest' in
            Div (left, right), rest''
          | _ -> left, rest)
     and parse_exp = function
       | [] -> failwith "Empty input"
       | tokens ->
-        let left, rest = parse_atom tokens in
+        let left, rest = parse_unary tokens in
         (match rest with
-         | Symbol '^' :: rest' ->
-           let right, rest'' = parse_mul rest' in
+         | Symbol ('^', _) :: rest' ->
+           let right, rest'' = parse_exp rest' in
            Exp (left, right), rest''
          | _ -> left, rest)
+    and parse_unary = function
+      | Symbol ('-', _) :: rest' ->
+        let operand, rest'' = parse_unary rest' in
+        Mul (Const (-1.), operand), rest''
+      | Symbol ('+', _) :: rest' -> parse_unary rest'
+      | tokens -> parse_atom tokens
     and parse_atom = function
       | [] -> failwith "Empty input"
       | Ln :: rest ->
@@ -235,15 +228,15 @@ module Parser = struct
          | Wrt :: LVar x :: rest'' -> Diff (expr, x), rest''
          | _ -> failwith "Invalid differentiation syntax")
       | LIntegral :: rest ->
-        let expr, rest' = parse_atom rest in
-        (match rest' with
-         | Wrt :: LVar x :: LCBracket :: rest'' ->
+        let expr, xs = parse_atom rest in
+        (match xs with
+         | Wrt :: LVar x :: Symbol ('{', pos) :: rest'' ->
            let e1, rest''' = parse_add rest'' in
            (match rest''' with
-            | Comma :: rest1 ->
+            | Symbol (',', _) :: rest1 ->
               let e2, rest1' = parse_add rest1 in
               (match rest1' with
-               | RCBracket :: rest1'' -> Integral (expr, x, Some (e1, e2)), rest1''
+               | Symbol ('}', _) :: rest1'' -> Integral (expr, x, Some (e1, e2)), rest1''
                | _ -> failwith "Expected '}' at the end of integration")
             | _ ->
               failwith
@@ -254,17 +247,18 @@ module Parser = struct
         (match Hashtbl.find_opt ctx x with
          | Some xpr -> xpr, rest
          | None -> Var x, rest)
-      | Let :: LVar x :: Assign :: rest ->
+      | Let :: LVar x :: Symbol ('=', _) :: rest ->
         let expr, rest' = parse_add rest in
         Let (x, expr), rest'
       | Nat n :: rest -> Const n, rest
       | E :: rest -> E, rest
-      | LParen c :: rest ->
+      | Symbol ('(', pos) :: rest ->
         let expr, rest' = parse_add rest in
         (match rest' with
-         | RParen :: rest'' -> expr, rest''
-         | _ -> raise (Parser_error ("Missing closing parenthesis ')' for this pair", c)))
-      | _ -> failwith "Invalid token"
+         | Symbol (')', _) :: rest'' -> expr, rest''
+         | _ ->
+           raise (Parser_error ("Missing closing parenthesis ')' for this pair", pos)))
+      | (_ as c) :: _ -> failwith ("Invalid token: " ^ show_token c)
     in
     let expr, rest = parse_add tokens in
     match rest with
