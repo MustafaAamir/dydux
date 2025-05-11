@@ -9,10 +9,17 @@ type expression =
   | Sin of expression
   | Cos of expression
   | Tan of expression
+  | Sec of expression
+  | Cosec of expression
+  | Cot of expression 
+  | Arccos of expression
+  | Arcsin of expression
+  | Arctan of expression
   | Diff of expression * string
   | E
   | Ln of expression
-  | Let of string * expression
+  | Log of expression * expression
+  | Let of string * string list option * expression
   | Integral of expression * string * (expression * expression) option
 [@@deriving show { with_path = false }]
 

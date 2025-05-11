@@ -1,4 +1,4 @@
-let ctx = Hashtbl.create 0
+let ctx = Hashtbl.create 32
 
 module Lexer = struct
   open Types
@@ -11,6 +11,13 @@ module Lexer = struct
     | Cos
     | Tan
     | Ln
+    | Log
+    | Arccos
+    | Arcsin
+    | Arctan
+    | Cosec
+    | Sec
+    | Cot
     | E
     | LDiff
     | LIntegral
@@ -127,7 +134,14 @@ module Lexer = struct
       ; "let", Let
       ; "integrate", LIntegral
       ; "e", E
-      ; "ln", Ln
+      ; "ln", Ln 
+      ; "log", Log 
+      ; "asin", Arcsin
+      ; "acos", Arccos 
+      ; "atan", Arctan
+      ; "cosec", Cosec
+      ; "sec", Sec
+      ; "cot", Cot
       ]
     in
     match input with
@@ -167,10 +181,22 @@ end
 module Parser = struct
   open Lexer
   open Types
+  open Printf
+
+  let expect_token token tokens =
+    match tokens with
+    | t :: rest when t = token -> rest
+    | _ -> failwith ("Expected " ^ show_token token)
+  ;;
+
+  let expect_symbol symbol pos tokens =
+    match tokens with
+    | Symbol (s, _) :: rest when s = symbol -> rest
+    | _ -> raise (Parser_error (Printf.sprintf "Expected %c" symbol, pos))
+  ;;
 
   let parse tokens =
     let rec parse_add = function
-      | [] -> failwith "Empty input"
       | tokens ->
         let left, rest = parse_mul tokens in
         (match rest with
@@ -179,10 +205,58 @@ module Parser = struct
            Add (left, right), rest''
          | Symbol ('-', _) :: rest' ->
            let right, rest'' = parse_add rest' in
-           Sub (left, right), rest''
+           Sub(left, right), rest''
          | _ -> left, rest)
+    and parse_function name tokens =
+      let expr, rest = parse_atom tokens in
+      match name with
+      | "ln" -> Ln expr, rest
+      | "sin" -> Sin expr, rest
+      | "cos" -> Cos expr, rest
+      | "tan" -> Tan expr, rest
+      | "asin" -> Arcsin expr, rest 
+      | "acos" -> Arccos expr, rest
+      | "atan" -> Arctan expr, rest
+      | "cosec" -> Cosec expr, rest
+      | "sec" -> Sec expr, rest
+      | "cot" -> Cot expr, rest
+      | _ -> failwith ("unknown function: " ^ name)
+    and parse_diff tokens =
+      let expr, rest = parse_atom tokens in
+      match rest with
+      | Wrt :: LVar x :: rest' -> Diff (expr, x), rest'
+      | _ -> failwith "invalid differentiation sytax"
+    and parse_integral tokens =
+      let expr, rest = parse_atom tokens in
+      match rest with
+      | Wrt :: LVar x :: Symbol ('{', pos) :: rest1 ->
+        let ll, rest2 = parse_add rest1 in
+        let rest3 = expect_symbol ',' pos rest2 in
+        let ul, rest4 = parse_add rest3 in
+        let final_rest = expect_symbol '}' pos rest4 in
+        Integral (expr, x, Some (ll, ul)), final_rest
+      | Wrt :: LVar x :: rest1 -> Integral (expr, x, None), rest1
+      | _ -> failwith "Invalid integral syntax"
+    and parse_vargs tokens =
+      let rec collect acc = function
+        | Symbol (')', _) :: rest -> List.rev acc, rest
+        | LVar x :: Symbol (',', _) :: rest -> collect (x :: acc) rest
+        | LVar x :: rest -> collect (x :: acc) rest
+        | _ -> failwith "Invalid function argument list"
+      in
+      collect [] tokens
+    and parse_let tokens =
+      match tokens with
+      | LVar x :: Symbol ('=', _) :: rest ->
+        let expr, rest' = parse_add rest in
+        Let (x, None, expr), rest'
+      | LVar x :: Symbol ('(', pos) :: rest ->
+        let args, rest' = parse_vargs rest in
+        let rest'' = expect_symbol '=' pos rest' in
+        let body, rest''' = parse_add rest'' in
+        Let (x, Some args, body), rest'''
+      | _ -> failwith "Invalid let syntax"
     and parse_mul = function
-      | [] -> failwith "Empty input"
       | tokens ->
         let left, rest = parse_exp tokens in
         (match rest with
@@ -194,7 +268,6 @@ module Parser = struct
            Div (left, right), rest''
          | _ -> left, rest)
     and parse_exp = function
-      | [] -> failwith "Empty input"
       | tokens ->
         let left, rest = parse_unary tokens in
         (match rest with
@@ -210,46 +283,13 @@ module Parser = struct
       | tokens -> parse_atom tokens
     and parse_atom = function
       | [] -> failwith "Empty input"
-      | Ln :: rest ->
-        let expr, rest' = parse_atom rest in
-        Ln expr, rest'
-      | Sin :: rest ->
-        let expr, rest' = parse_atom rest in
-        Sin expr, rest'
-      | Cos :: rest ->
-        let expr, rest' = parse_atom rest in
-        Cos expr, rest'
-      | Tan :: rest ->
-        let expr, rest' = parse_atom rest in
-        Tan expr, rest'
-      | LDiff :: rest ->
-        let expr, rest' = parse_atom rest in
-        (match rest' with
-         | Wrt :: LVar x :: rest'' -> Diff (expr, x), rest''
-         | _ -> failwith "Invalid differentiation syntax")
-      | LIntegral :: rest ->
-        let expr, xs = parse_atom rest in
-        (match xs with
-         | Wrt :: LVar x :: Symbol ('{', pos) :: rest'' ->
-           let e1, rest''' = parse_add rest'' in
-           (match rest''' with
-            | Symbol (',', _) :: rest1 ->
-              let e2, rest1' = parse_add rest1 in
-              (match rest1' with
-               | Symbol ('}', _) :: rest1'' -> Integral (expr, x, Some (e1, e2)), rest1''
-               | _ -> failwith "Expected '}' at the end of integration")
-            | _ ->
-              failwith
-                "Expected ',' after first expression in definite integration syntax")
-         | Wrt :: LVar x :: rest'' -> Integral (expr, x, None), rest''
-         | _ -> failwith "Invalid Integral syntax")
-      | LVar x :: rest ->
-        (match Hashtbl.find_opt ctx x with
-         | Some xpr -> xpr, rest
-         | None -> Var x, rest)
-      | Let :: LVar x :: Symbol ('=', _) :: rest ->
-        let expr, rest' = parse_add rest in
-        Let (x, expr), rest'
+      | Ln :: rest -> parse_function "ln" rest
+      | Sin :: rest -> parse_function "sin" rest
+      | Cos :: rest -> parse_function "cos" rest
+      | Tan :: rest -> parse_function "tan" rest
+      | LDiff :: rest -> parse_diff rest
+      | LIntegral :: rest -> parse_integral rest
+      | Let :: rest -> parse_let rest
       | Nat n :: rest -> Const n, rest
       | E :: rest -> E, rest
       | Symbol ('(', pos) :: rest ->
@@ -258,11 +298,16 @@ module Parser = struct
          | Symbol (')', _) :: rest'' -> expr, rest''
          | _ ->
            raise (Parser_error ("Missing closing parenthesis ')' for this pair", pos)))
-      | (_ as c) :: _ -> failwith ("Invalid token: " ^ show_token c)
+      | LVar x :: rest ->
+        (match Hashtbl.find_opt ctx x with
+         | Some xpr -> xpr, rest
+         | None -> Var x, rest)
+      | c :: _ -> failwith ("Invalid token: " ^ show_token c)
     in
     let expr, rest = parse_add tokens in
     match rest with
     | EOF :: _ -> expr
-    | _ -> failwith "Unexpected tokens after expression"
+    | token :: _ -> failwith ("Unexpected token after expression: " ^ show_token token)
+    | [] -> failwith "Unexpected end of input"
   ;;
 end

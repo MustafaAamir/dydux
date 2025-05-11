@@ -48,7 +48,9 @@ module P = struct
         (fst limits |> print)
         (snd limits |> print)
     | Integral (expression, x, None) -> Printf.sprintf "∫%s .wrt %s" (print expression) x
-    | Let (var, expr) -> Printf.sprintf "%s = %s" var (print expr)
+    | Let (var, None, expr) -> Printf.sprintf "%s = %s" var (print expr)
+    | Let (var, Some args, expr) ->
+      Printf.sprintf "%s[%s] = %s" var (String.concat ", " args) (print expr)
   ;;
 
   (*abstract this away*)
@@ -82,6 +84,8 @@ module P = struct
       Printf.sprintf "\\int_{%s}^{%s} %s\\, d%s" (print a) (print b) (latex expression) x
     | Integral (expression, x, None) ->
       Printf.sprintf "\\int %s\\, d%s" (latex expression) x
-    | Let (var, expr) -> Printf.sprintf "%s = %s" var (latex expr)
+    | Let (var, None, expr) -> Printf.sprintf "%s = %s" var (latex expr)
+    | Let (var, Some args, expr) ->
+      Printf.sprintf "%s(%s) = %s" var (String.concat ", " args) (print expr)
   ;;
 end

@@ -32,169 +32,114 @@ module Engine = struct
     | Integral (e1, wrt, limits) -> Integral (subst x s e1, wrt, limits)
     | _ -> expr
   ;;
+  module Flatten = struct 
+      let rec add = function
+        | Add (a, b) -> add a @ add b
+        | e -> [ e ]
+      ;;
 
-  let rec simplify expr =
-    let rec derivative_engine expression wrt =
-      (*
-         (Diff (
-   (Mul ((Sin (Add ((Mul ((Const 2.), (Const 3.14159265359))), (Var "x")))),
-      (Cos (Add ((Mul ((Const 2.), (Const 3.14159265359))), (Var "x")))))),
-   "x"))
-      *)
-      match expression with
-      | Exp (Const c, Var _) -> Mul (expression, Ln (Const c))
-      | Mul (E, Var _) | Mul (Var _, E) -> E
-      | Exp (E, Var _) -> expression
-      | Mul (Const _, E) | Mul (E, Const _) -> Const 0.
-      | Exp (E, e1) ->
-        let e1' = simplify (derivative_engine e1 wrt) in
-        (match e1' with
-         | Const x when x = 0.0 -> Const 0.0
-         | _ -> Mul (e1', Exp (E, e1)))
-      | Const _ | E -> Const 0.0
-      | Var x when x = wrt -> Const 1.
-      | Var x -> Var x
-      | Add (e1, e2) ->
-        let e1' = simplify (derivative_engine e1 wrt) in
-        let e2' = simplify (derivative_engine e2 wrt) in
-        Add (e1', e2')
-      | Sub (e1, e2) ->
-        let e1' = simplify (derivative_engine e1 wrt) in
-        let e2' = simplify (derivative_engine e2 wrt) in
-        Sub (e1', e2')
-      | Ln e ->
-        let e' = simplify (derivative_engine e wrt) in
-        Mul (e', Div (one, e) |> simplify) |> simplify
-      | Mul (Const c, Var _) | Mul (Var _, Const c) -> Const c
-      | Mul (e1, e2) ->
-        let e1' = simplify (derivative_engine e1 wrt) in
-        let e2' = simplify (derivative_engine e2 wrt) in
-        Add (Mul (e1', e2), Mul (e1, e2'))
-      | Div (e1, e2) ->
-        let e1' = simplify (derivative_engine e1 wrt) in
-        let e2' = simplify (derivative_engine e2 wrt) in
-        Div
-          (Sub (Mul (e1', e2) |> simplify, Mul (e1, e2') |> simplify), Exp (e2, Const 2.))
-        |> simplify
-      | Exp (Var x, Const c) -> Mul (Const c, simplify (Exp (Var x, Const (c -. 1.))))
-      | Exp (e1, Const c) ->
-        Mul
-          ( Mul (Const c, Exp (e1, Const (c -. 1.))) |> simplify
-          , derivative_engine e1 wrt |> simplify )
-        |> simplify
-      | Cos (Var x) -> Mul (Const (-1.), Sin (Var x)) |> simplify
-      | Sin xpr -> Mul (derivative_engine xpr wrt |> simplify, Cos xpr) |> simplify
-      | Cos xpr ->
-        Mul (derivative_engine xpr wrt, Mul (Const (-1.), Sin xpr))
-        |> simplify
-      | _ -> failwith "Not implemented yet"
+      let rec sub = function
+        | Sub (a, b) -> sub a @ sub b
+        | e -> [ e ]
+      ;;
+
+      let rec mul = function
+        | Mul (a, b) -> mul a @ mul b
+        | e -> [ e ]
+      ;;
+
+      let rec exp = function
+        | Exp (a, b) -> [ a; b ]
+        | e -> [ e ]
+      ;;
+  end
+
+  let simplify_exp terms =
+    match terms with
+    | [ e1; Const 1. ] -> e1 (* x^1 = x *)
+    | [ _; Const 0. ] -> Const 1. (* x^0 = 1. *)
+    | [ Const 0.; _ ] -> Const 0. (* 0.^x = 0. (for x ≠ 0., assuming that) *)
+    | [ Const c; Const c2 ] -> Const (c ** c2) (* 0.^x = 0. (for x ≠ 0., assuming that) *)
+    | [ e1; e2 ] -> Exp (e1, e2)
+    | _ -> failwith "Invalid exponent structure"
+  ;;
+
+  let simplify_bina f terms =
+    let const_sum, var_terms, others =
+      List.fold_left
+        (fun (acc_c, acc_v, acc_o) -> function
+           | Const c -> f acc_c c, acc_v, acc_o
+           | Var v -> acc_c, (v, 1.) :: acc_v, acc_o
+           | Mul (Const c, Var v) | Mul (Var v, Const c) -> acc_c, (v, c) :: acc_v, acc_o
+           | e -> acc_c, acc_v, e :: acc_o)
+        (0., [], [])
+        terms
     in
-    let rec integral_engine expression wrt limits =
-      let res =
-        match simplify expression with
-        | Var x when x = wrt ->
-          let num = Exp (Var x, Const 2.) |> simplify in
-          Div (num, Const 2.) |> simplify
-        | Exp (Var v, Const c) ->
-          let num = Exp (Var v, Const (c +. 1.)) |> simplify in
-          Div (num, Const (c +. 1.)) |> simplify
-        | Const c -> Mul (Const c, Var wrt)
-        | Div (Const c, expr) ->
-          Div (Mul (Const c, Ln expr) |> simplify, derivative_engine expr wrt |> simplify)
-          |> simplify
-        | Mul (Const c, Var v) ->
-          Mul (Const c, Div (Exp (Var v, Const 2.) |> simplify, Const 2.)) |> simplify
-        | Sin e ->
-          let ie = simplify e in
-          let dif = derivative_engine ie wrt in
-          Mul (Div (Const (-1.), dif) |> simplify, Cos ie) |> simplify
-        | Cos e ->
-          let ie = simplify e in
-          let dif = derivative_engine ie wrt in
-          Mul (Div (Const 1., dif) |> simplify, Sin ie) |> simplify
-        | Tan e ->
-          let ie = simplify e in
-          let dif = derivative_engine ie wrt in
-          Mul (Div (Const (-1.), dif) |> simplify, Ln (Cos ie)) |> simplify
-        | Add (e1, e2) ->
-          Add
-            ( integral_engine (simplify e1) wrt limits
-            , integral_engine (simplify e2) wrt limits )
-        | Sub (e1, e2) ->
-          Sub
-            ( integral_engine (simplify e1) wrt limits
-            , integral_engine (simplify e2) wrt limits )
-        | _ -> expression |> simplify
+    let grouped_vars =
+      List.fold_left
+        (fun acc (v, c) ->
+           if v = ""
+           then acc
+           else (
+             let prev =
+               try List.assoc v acc with
+               | Not_found -> 0.
+             in
+             (v, prev +. c) :: List.remove_assoc v acc))
+        []
+        var_terms
+    in
+    let exprs =
+      (if const_sum <> 0. then [ Const const_sum ] else [])
+      @ List.map
+          (fun (v, c) -> if c = 1. then Var v else Mul (Const c, Var v))
+          grouped_vars
+      @ others
+    in
+    match exprs with
+    | [] -> Const 0.
+    | [ e ] -> e
+    | hd :: tl -> List.fold_left (fun acc e -> Add (acc, e)) hd tl
+  ;;
+
+  let simplify_mul terms =
+    let rec process acc_c acc_v acc_other = function
+      | [] -> acc_c, acc_v, acc_other
+      | Const 0. :: _ -> 0., [], [] (* short-circuit *)
+      | Const 1. :: rest -> process acc_c acc_v acc_other rest
+      | Const c :: rest -> process (acc_c *. c) acc_v acc_other rest
+      | Var v :: rest -> process acc_c (v :: acc_v) acc_other rest
+      | e :: rest -> process acc_c acc_v (e :: acc_other) rest
+    in
+    let const_product, var_list, others = process 1. [] [] terms in
+    if const_product = 0.
+    then Const 0.
+    else (
+      let exprs =
+        (if const_product <> 1. then [ Const const_product ] else [])
+        @ List.map (fun v -> Var v) var_list
+        @ others
       in
-      match limits with
-      | Some (l1, l2) ->
-        integral_flag := false;
-        Sub (subst wrt l1 res |> simplify, subst wrt l2 res |> simplify) |> simplify
-      | None -> res |> simplify
-    in
-    let simplify' = function
-      | Add (Const m, Const n) -> Const (m +. n)
-      | Sub (Const m, Const n) -> Const (m -. n)
-      | Mul (Const m, Const n) -> Const (m *. n)
-      | Mul (Var m, Var n) when m = n -> Exp (Var m, Const 2.)
-      | Add (Var m, Var n) when m = n -> Mul (Const 2., Var m)
-      | Add (Const 0., x) | Add (x, Const 0.) -> x
-      | Sub (Const 0., x) | Mul (x, Const -1.) -> x
-      | Sub (x, Const 0.) -> x
-      | Sub (Var m, Var n) when m = n -> Const 0.
-      | Mul (Const 0., _) | Mul (_, Const 0.) -> Const 0.
-      | Mul (Const 1., x) | Mul (x, Const 1.) -> x
-      | Div (Const 0., _) -> Const 0.
-      | Div (_, Const 0.) -> "Division by Zero Error" |> failwith
-      | Div (Const m, Const n) -> Const (m /. n)
-      | Div (x, Const 1.) -> x
-      | Div (Var x, Var y) when x = y -> Const 1.
-      | Div (Var x, Mul (Const c, Var y)) when x = y -> Const (1. /. c)
-      | Div (Mul (Const c, Var x), Var y) when x = y -> Const c
-      | Div (Mul (Const a, Var x), Mul (Const b, Var y)) when x = y -> Const (a /. b)
-      | Exp (_, Const 0.) | Exp (Const 1., _) -> Const 1.
-      | Exp (x, Const 1.) -> x
-      | Exp (Const m, Const n) -> Const (m ** n)
-      | Sin (Const n) -> Const (sin n)
-      | Cos (Const n) -> Const (cos n)
-      | Tan (Const n) -> Const (tan n)
-      | Ln E -> Const 1.
-      | Exp (E, Ln x) -> x
-      | Ln (Mul (E, x)) | Ln (Mul (x, E)) -> Add (Const 1., Ln x)
-      | Add (Ln x, Ln y) -> Ln (Mul (x, y))
-      | Sub (Ln x, Ln y) -> Ln (Div (x, y))
-      | Ln (Exp (E, y)) -> y
-      | Ln (Exp (x, y)) -> Mul (y, Ln x)
-      | _ -> expr
-    in
-    match expr with
-    | Var v ->
-      (match Hashtbl.find_opt ctx v with
-       | Some e -> simplify' e
-       | None -> Var v)
-    | Add (e1, e2) -> Add (simplify e1, simplify e2) |> simplify' (* base case*)
-    | Sub (e1, e2) -> Sub (simplify e1, simplify e2) |> simplify'
-    | Mul (e1, e2) -> Mul (simplify e1, simplify e2) |> simplify'
-    | Div (e1, e2) -> Div (simplify e1, simplify e2) |> simplify'
-    | Exp (e1, e2) -> Exp (simplify e1, simplify e2) |> simplify'
-    | E -> E
-    | Sin e -> Sin (simplify e) |> simplify'
-    | Cos e -> Cos (simplify e) |> simplify'
-    | Tan e -> Tan (simplify e) |> simplify'
-    | Ln e -> Ln (simplify e) |> simplify'
-    | Diff (expression, x) -> derivative_engine (simplify expression) x |> simplify
+      match exprs with
+      | [] -> Const 1.
+      | [ e ] -> e
+      | x :: xs -> List.fold_left (fun acc e -> Mul (acc, e)) x xs)
+  ;;
+
+  let rec simplify e =
+    match e with
     | Const c -> Const c
-    | Integral (expression, x, Some (l1, l2)) ->
-      integral_flag := true;
-      integral_engine (simplify expression) x (Some (simplify l1, simplify l2))
-      |> simplify
-    | Integral (expression, x, None) ->
-      integral_flag := true;
-      integral_engine (simplify expression) x None |> simplify
-    | Let (v, e) ->
-      let e' = simplify e in
-      Hashtbl.add ctx v e';
-      e'
+    | Var v -> Var v
+    | Add (_, _) ->
+      let flat = Flatten.add e |> List.map simplify in
+      simplify_bina ( +. ) flat 
+    | Mul (_, _) ->
+      let flat = Flatten.mul e |> List.map simplify in
+      simplify_mul flat
+    | Exp (_, _) ->
+      let flat = Flatten.exp e |> List.map simplify in
+      simplify_exp flat
+    | _ -> e
   ;;
 
   let post_process_integral flag (expr : expression) =
