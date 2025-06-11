@@ -31,7 +31,7 @@ let p x =
   x
   |> Lexer.lex
   |> Parser.parse
-  |> Engine.simplify
+  |> Engine.fixpoint
   |> Engine.post_process_integral integral_flag
 ;;
 
@@ -70,9 +70,10 @@ let printer e =
   | false -> P.print e
 ;;
 
-let debug e =
+let debug e (h : string) =
   match !toggle_debug with
   | true ->
+    print_endline h;
     ANSITerminal.printf [ Foreground Red; Bold ] "━━━━━━Ast━━━━━━\n";
     show_expression e |> print_endline
   | false -> ()
@@ -101,13 +102,21 @@ let rec repl () =
      | ":latex" -> toggle_latex := not !toggle_latex
      | ":debug" -> toggle_debug := not !toggle_debug
      | ":context" -> Hashtbl.iter (fun k v -> print_row k v) ctx
+     | "generate" ->
+       let input = Generate.gen 10 [ "x"; "y"; "z" ] in
+       debug input "before";
+       let result = Engine.fixpoint input in
+       Hashtbl.remove ctx "$";
+       Hashtbl.add ctx "$" result;
+       result |> printer |> print_endline;
+       debug result "after"
      | _ ->
-       debug (input |> Lexer.lex |> Parser.parse);
+       debug (input |> Lexer.lex |> Parser.parse) "before";
        let result = p input in
        Hashtbl.remove ctx "$";
        Hashtbl.add ctx "$" result;
        result |> printer |> print_endline;
-       debug result);
+       debug result "after");
     repl ()
   with
   | Invalid_argument _ -> repl ()
