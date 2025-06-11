@@ -39,6 +39,7 @@ module P = struct
     | Cos e1 -> Printf.sprintf "cos(%s)" (print e1)
     | Tan e1 -> Printf.sprintf "tan(%s)" (print e1)
     | Ln e1 -> Printf.sprintf "ln(%s)" (print e1)
+    | Log (base, e) -> Printf.sprintf "log(%s, %s)" (print base) (print e)
     | Diff (expression, x) -> Printf.sprintf "∂%s .wrt %s" (print expression) x
     | Integral (expression, x, Some limits) ->
       Printf.sprintf
@@ -51,6 +52,12 @@ module P = struct
     | Let (var, None, expr) -> Printf.sprintf "%s = %s" var (print expr)
     | Let (var, Some args, expr) ->
       Printf.sprintf "%s[%s] = %s" var (String.concat ", " args) (print expr)
+    | Sec e -> Printf.sprintf "sec(%s)" (print e)
+    | Cosec e -> Printf.sprintf "cosec(%s)" (print e)
+    | Cot e -> Printf.sprintf "cot(%s)" (print e)
+    | Arcsin e -> Printf.sprintf "arcsin(%s)" (print e)
+    | Arccos e -> Printf.sprintf "arcos(%s)" (print e)
+    | Arctan e -> Printf.sprintf "arctan(%s)" (print e)
   ;;
 
   (*abstract this away*)
