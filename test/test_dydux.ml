@@ -4,6 +4,7 @@ open Dydux.Expr
 open Dydux.Printer
 open Dydux.Types [@@warning "-33"]
 open OUnit2 [@@warning "-33"]
+open Random
 
 let _p x =
   x
@@ -12,6 +13,8 @@ let _p x =
   |> Engine.simplify
   |> Engine.post_process_integral integral_flag
 ;;
+
+
 
 module ParserTest = struct
   let process x = x |> Lexer.lex |> Parser.parse |> Engine.simplify
