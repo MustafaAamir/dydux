@@ -8,5 +8,5 @@
  (public_name dydux)
  (modules expr engine types printer)
  (preprocess
-  (pps ppx_deriving.show))
+  (pps ppx_deriving.show ppx_deriving.eq))
  (libraries fmt))
