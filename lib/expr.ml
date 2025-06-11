@@ -134,10 +134,10 @@ module Lexer = struct
       ; "let", Let
       ; "integrate", LIntegral
       ; "e", E
-      ; "ln", Ln 
-      ; "log", Log 
+      ; "ln", Ln
+      ; "log", Log
       ; "asin", Arcsin
-      ; "acos", Arccos 
+      ; "acos", Arccos
       ; "atan", Arctan
       ; "cosec", Cosec
       ; "sec", Sec
@@ -205,7 +205,7 @@ module Parser = struct
            Add (left, right), rest''
          | Symbol ('-', _) :: rest' ->
            let right, rest'' = parse_add rest' in
-           Sub(left, right), rest''
+           Sub (left, right), rest''
          | _ -> left, rest)
     and parse_function name tokens =
       let expr, rest = parse_atom tokens in
@@ -214,7 +214,7 @@ module Parser = struct
       | "sin" -> Sin expr, rest
       | "cos" -> Cos expr, rest
       | "tan" -> Tan expr, rest
-      | "asin" -> Arcsin expr, rest 
+      | "asin" -> Arcsin expr, rest
       | "acos" -> Arccos expr, rest
       | "atan" -> Arctan expr, rest
       | "cosec" -> Cosec expr, rest
@@ -287,6 +287,12 @@ module Parser = struct
       | Sin :: rest -> parse_function "sin" rest
       | Cos :: rest -> parse_function "cos" rest
       | Tan :: rest -> parse_function "tan" rest
+      | Arcsin :: rest -> parse_function "asin" rest
+      | Arccos :: rest -> parse_function "acos" rest
+      | Arctan :: rest -> parse_function "atan" rest
+      | Cosec :: rest -> parse_function "cosec" rest
+      | Cot :: rest -> parse_function "cot" rest
+      | Sec :: rest -> parse_function "sec" rest
       | LDiff :: rest -> parse_diff rest
       | LIntegral :: rest -> parse_integral rest
       | Let :: rest -> parse_let rest
