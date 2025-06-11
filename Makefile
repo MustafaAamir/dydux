@@ -1,4 +1,4 @@
 all:
-	dune exec dydux
+	rlwrap dune exec dydux
 clean:
 	rm _build/.lock
