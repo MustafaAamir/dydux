@@ -56,3 +56,45 @@ Digit    ::= "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9";
 
 
 rulebasedintegration.org/integrationRules.html
+
+rewrite engine
+
+1. Variant functions for different ranges of input values like
+
+let f(x) = 3x + 1 when x < 5 | x ^ 2 when x > 5 
+{ 
+    encodes rules for the input arguments so if x = 5, returns a domain error in the function definition and prints the rules
+}
+let f(x, y) ::
+    | 3x + 2y^2 when y >= 100
+    | 3x + y when y < 100
+{
+    when no rule is provided, no constraint is set. 
+    rule collisions can't occur there has to be a resolver. 
+}
+
+let g(x) :: sin(x)^2 + x
+let f(x) ::
+    | 10x when g(x) = 1
+    | x^2
+{
+    if g(x) is a linear function then the result of f(x) will be
+    a parabola with one anomalous point at x = 1
+}
+
+let value ::
+  let f(x) :: x^2 when x >= 0 and x <= 100 in
+  f(100)
+{
+    evaluates f(x), applies it to 100, binds the result to value, and f(x) 
+    goes out of scope
+}
+
+let f(x) ::
+    | 10x when (let g(x <anonymous arugment>) :: sin(x)^2 + x in g(x)) = 1
+    | x^2
+
+{
+    types are finicky. I will implement types for matrices to avoid incorrect operations.
+}
+
