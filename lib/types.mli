@@ -11,7 +11,7 @@ type expression =
   | Tan of expression
   | Sec of expression
   | Cosec of expression
-  | Cot of expression 
+  | Cot of expression
   | Arccos of expression
   | Arcsin of expression
   | Arctan of expression
@@ -21,7 +21,7 @@ type expression =
   | Log of expression * expression
   | Let of string * string list option * expression
   | Integral of expression * string * (expression * expression) option
-[@@deriving show { with_path = false }]
+[@@deriving show { with_path = false }, eq]
 
 exception Parser_error of string * int
 exception Lexer_error of string * int
